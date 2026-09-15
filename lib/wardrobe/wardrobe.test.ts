@@ -1,0 +1,73 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import {PRODUCTS,getProduct} from './catalog';
+import {DEFAULT_BODY,BODY_FIELDS,cloneBody,makePreset,parseStoredBody,setMeasurement,validateBody} from './body';
+import {estimateFit,wear,remove} from './fit';
+import {makeGarment,disposeGroup} from './geometry';
+import {ellipseCircumference,estimatePhotoBody,type PhotoEvidence} from './photo-estimate';
+import {validateWearRequests} from './webmcp';
+
+test('catalog contains eight real product links and valid available default sizes',()=>{
+ assert.equal(PRODUCTS.length,8);assert.equal(new Set(PRODUCTS.map(p=>p.id)).size,8);
+ for(const p of PRODUCTS){assert.equal(new URL(p.url).hostname,'www.musinsa.com');assert.ok(p.sizes.some(s=>s.label===p.defaultSize));for(const s of p.sizes)for(const [key,n] of Object.entries(s))if(key!=='label'&&n!==undefined)assert.ok(typeof n==='number'&&n>0);}
+ assert.deepEqual(['top','bottom','hat'].map(slot=>PRODUCTS.filter(p=>p.slot===slot).length),[3,3,2]);
+});
+test('half-width and circumference inputs produce the same chest ease',()=>{
+ const p=getProduct('3777371')!,s={label:'test',chestFlat:55};
+ assert.equal(estimateFit(DEFAULT_BODY,p,s)[0].value,14);
+ assert.equal(estimateFit(DEFAULT_BODY,p,{label:'test',chestCirc:110})[0].value,14);
+});
+test('negative ease stays negative instead of hiding a small size',()=>{
+ const b=setMeasurement(DEFAULT_BODY,'chest',125,'manual');assert.equal(estimateFit(b,PRODUCTS[0],{label:'test',chestFlat:55})[0].value,-15);
+});
+test('missing measurements, elastic waists, and adjustable caps defer fit judgments',()=>{
+ assert.equal(estimateFit(DEFAULT_BODY,PRODUCTS[0],{label:'test'})[0].kind,'unavailable');
+ assert.equal(estimateFit(DEFAULT_BODY,getProduct('5196637')!,getProduct('5196637')!.sizes[1])[0].kind,'unavailable');
+ assert.equal(estimateFit(DEFAULT_BODY,getProduct('4658117')!,{label:'58',headCirc:58})[0].kind,'unavailable');
+});
+test('fixed caps can compare head circumference when adjustment is absent',()=>{
+ const p={...getProduct('4658117')!,adjustableHat:false};assert.equal(estimateFit(DEFAULT_BODY,p,{label:'58',headCirc:58})[0].value,1);
+});
+test('wearing or replacing a slot preserves other slots and never mutates prior state',()=>{
+ const first=wear({},getProduct('3504218')!,'30'),second=wear(first,PRODUCTS[0],'M'),third=wear(second,getProduct('6170660')!,'화이트L');
+ assert.deepEqual(first,{bottom:{productId:'3504218',size:'30'}});assert.deepEqual(third.bottom,first.bottom);assert.equal(third.top?.productId,'6170660');assert.equal(second.top?.productId,'3777371');assert.deepEqual(remove(third,'top'),first);
+});
+test('unknown size is rejected without state changes',()=>{const old={};assert.throws(()=>wear(old,PRODUCTS[0],'FAKE'));assert.deepEqual(old,{});});
+test('typed body values and source labels are validated',()=>{
+ assert.ok(validateBody(DEFAULT_BODY));assert.equal(validateBody(setMeasurement(DEFAULT_BODY,'height',NaN,'manual')),false);assert.equal(validateBody(setMeasurement(DEFAULT_BODY,'height',20,'manual')),false);assert.equal(validateBody(setMeasurement(DEFAULT_BODY,'legLength',134,'manual')),false);
+});
+test('presets stay valid and their inputs are labelled as estimates',()=>{for(const h of [140,175,210])for(const shape of ['slim','regular','broad'] as const){const b=makePreset(h,shape);assert.ok(validateBody(b));assert.equal(b.measurements.height,h);assert.ok(Object.values(b.sources).every(s=>s==='simple'));}});
+test('storage round trip preserves measurements; corrupt data is ignored',()=>{
+ const b=setMeasurement(DEFAULT_BODY,'waist',85,'manual');assert.deepEqual(parseStoredBody(JSON.stringify(b)),b);assert.equal(parseStoredBody('not-json'),null);assert.equal(parseStoredBody('{"version":3}'),null);
+});
+test('storage hydration strips unrecognized fields, including photo payloads',()=>{
+ const b={...cloneBody(DEFAULT_BODY),photo:'secret',measurements:{...DEFAULT_BODY.measurements,photo:'secret'}};
+ assert.equal(JSON.stringify(parseStoredBody(JSON.stringify(b))).includes('secret'),false);
+});
+test('3D garment dimensions do not expand when body girth increases',()=>{
+ const p=PRODUCTS[0],a=makeGarment(p,p.sizes[1],DEFAULT_BODY),b=makeGarment(p,p.sizes[1],setMeasurement(DEFAULT_BODY,'chest',140,'manual'));
+ const aa=new THREE.Box3().setFromObject(a).getSize(new THREE.Vector3()),bb=new THREE.Box3().setFromObject(b).getSize(new THREE.Vector3());assert.ok(aa.distanceTo(bb)<1e-8);disposeGroup(a);disposeGroup(b);
+});
+test('all garment variants generate finite geometry',()=>{for(const p of PRODUCTS)for(const s of p.sizes){const g=makeGarment(p,s,DEFAULT_BODY);g.traverse(o=>{if(o instanceof THREE.Mesh)assert.ok(Array.from(o.geometry.getAttribute('position').array).every(Number.isFinite));});disposeGroup(g);}});
+
+function evidence(side=false):PhotoEvidence{
+ const width=240,height=400,mask=new Float32Array(width*height);const pts=Array.from({length:33},()=>({x:.5,y:.3,visibility:1}));
+ // Geometric fixture with known scale; this tests postprocessing, not learned model accuracy.
+ for(let y=20;y<=379;y++){const w=y<75?30:y<230?(side?42:65):y<275?(side?45:69):35;for(let x=120-Math.floor(w/2);x<120+Math.ceil(w/2);x++)mask[y*width+x]=1;}
+ pts[0]={x:.5,y:.09,visibility:1};pts[11]={x:side?.48:.30,y:.25,visibility:1};pts[12]={x:side?.52:.70,y:.25,visibility:1};pts[23]={x:.43,y:.65,visibility:1};pts[24]={x:.57,y:.65,visibility:1};pts[27]={x:.46,y:.90,visibility:1};pts[28]={x:.54,y:.90,visibility:1};pts[13]={x:.24,y:.41,visibility:1};pts[14]={x:.76,y:.41,visibility:1};pts[15]={x:.19,y:.56,visibility:1};pts[16]={x:.81,y:.56,visibility:1};return {width,height,mask,points:pts,people:1};
+}
+test('ellipse approximation returns circle perimeter for equal axes',()=>assert.ok(Math.abs(ellipseCircumference(10,10)-10*Math.PI)<1e-8));
+test('photo estimates use the supplied height and preserve explicit measurements',()=>{
+ const b=setMeasurement(DEFAULT_BODY,'chest',100,'manual');const r=estimatePhotoBody(evidence(),evidence(true),175,b);assert.equal(r.body.measurements.height,175);assert.equal(r.body.measurements.chest,100);assert.ok(r.preserved.includes('chest'));assert.equal(r.body.sources.waist,'photo');assert.ok(validateBody(r.body));assert.equal(r.body.sources.head,'simple');
+});
+test('photo processing rejects multiple people, cropped images and wrong orientations',()=>{
+ assert.throws(()=>estimatePhotoBody({...evidence(),people:2},evidence(true),175,DEFAULT_BODY));
+ const cropped=evidence();cropped.mask[120]=1;assert.throws(()=>estimatePhotoBody(cropped,evidence(true),175,DEFAULT_BODY));
+ assert.throws(()=>estimatePhotoBody(evidence(true),evidence(),175,DEFAULT_BODY));
+});
+test('photo input must be finite and within the supported height range',()=>assert.throws(()=>estimatePhotoBody(evidence(),evidence(true),NaN,DEFAULT_BODY)));
+test('WebMCP rejects invalid batches atomically',()=>{
+ assert.deepEqual(validateWearRequests({items:[{productId:'3777371',size:'M'}]}),[{productId:'3777371',size:'M'}]);
+ assert.throws(()=>validateWearRequests({items:[{productId:'3777371',size:'M'},{productId:'6170660',size:'화이트M'}]}));assert.throws(()=>validateWearRequests({items:[{productId:'3777371',size:'missing'}]}));
+});

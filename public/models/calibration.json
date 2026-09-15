@@ -1,0 +1,97 @@
+{
+  "heightM": 1.75,
+  "frontAxis": "+Z",
+  "upAxis": "+Y",
+  "origin": "ground under body center",
+  "referenceCircumferencesCm": {
+    "chest": 96.0,
+    "waist": 80.0,
+    "hips": 98.0
+  },
+  "measurementLevelsM": {
+    "chest": 1.3,
+    "waist": 1.12,
+    "hips": 0.95
+  },
+  "referenceShoulderWidthCm": 35.24,
+  "referenceArmLengthCm": 47.79,
+  "referenceLegLengthCm": 91.0,
+  "uiReferenceCm": {
+    "height": 175,
+    "chest": 96,
+    "waist": 80,
+    "hips": 98,
+    "shoulders": 43,
+    "armLength": 59,
+    "waistHeight": 105,
+    "head": 57
+  },
+  "headCircumferenceCm": 57.0,
+  "headMeasurementLevelM": 1.66,
+  "morphs": {
+    "chest": {
+      "weightRange": [
+        -1,
+        1
+      ],
+      "defaultWeight": 0,
+      "approxCmPerWeight": 50.0,
+      "uiCmPerWeight": 50
+    },
+    "waist": {
+      "weightRange": [
+        -1,
+        1
+      ],
+      "defaultWeight": 0,
+      "approxCmPerWeight": 60.0,
+      "uiCmPerWeight": 60
+    },
+    "hips": {
+      "weightRange": [
+        -1,
+        1
+      ],
+      "defaultWeight": 0,
+      "approxCmPerWeight": 55.0,
+      "uiCmPerWeight": 55
+    },
+    "shoulders": {
+      "weightRange": [
+        -1,
+        1
+      ],
+      "defaultWeight": 0,
+      "approxCmPerWeight": 10,
+      "uiCmPerWeight": 10
+    },
+    "armLength": {
+      "weightRange": [
+        -1,
+        1
+      ],
+      "defaultWeight": 0,
+      "approxCmPerWeight": 15,
+      "uiCmPerWeight": 15
+    },
+    "legLength": {
+      "weightRange": [
+        -1,
+        1
+      ],
+      "defaultWeight": 0,
+      "approxCmPerWeight": 20,
+      "uiCmPerWeight": 20
+    },
+    "head": {
+      "weightRange": [
+        -1,
+        1
+      ],
+      "defaultWeight": 0,
+      "approxCmPerWeight": 13,
+      "uiCmPerWeight": 13
+    }
+  },
+  "limits": "Illustrative proportions only. Torso circumference uses horizontal mesh sections. Not validated body scanning, medical measurement, cloth simulation, or garment fit prediction."
+}
