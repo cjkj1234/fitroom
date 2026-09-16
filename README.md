@@ -8,8 +8,9 @@
 - [광고 제작 입력·출력 설계와 예시](docs/AD_CREATION_SPEC.md)
 - [일정과 제출 마감](docs/TIMELINE.md)
 - [개인 업무일지 초안](docs/journal/2026-09-16.md)
+- [프로젝트 보고서 초안](docs/report/REPORT_DRAFT.md)
 
-GitHub 제출 저장소와 최종 보고서 PDF는 추후 준비합니다.
+GitHub Actions 검증 설정과 보고서 초안을 준비했습니다. GitHub 제출 저장소 게시와 최종 보고서 PDF는 로그인 복구와 실제 모델 평가 후 완료합니다.
 
 ## 현재 구현된 광고 스튜디오
 
