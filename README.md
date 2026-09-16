@@ -32,11 +32,14 @@ npm run dev
 npm test
 npm run typecheck
 npm run build
+npm run evaluate:ads -- --dry-run
 ```
 
 Node.js 22.13 이상. Sites의 portable 실행 프로필과 Vinext/React/TypeScript, Three.js를 사용합니다.
 
 AI 생성은 서버 실행 환경에 `OPENAI_API_KEY`를 비밀값으로 설정해야 동작합니다. 키가 없으면 화면에서 연결 설정 필요 상태를 명확히 표시하며 예시 문구를 실제 생성 결과처럼 대신 보여주지 않습니다.
+
+실제 모델 평가 절차는 [광고 평가 안내](docs/evaluations/README.md)에 있습니다. `--dry-run`은 키 없이 정상·오류 입력 규격만 검사하고, 실제 평가는 키가 연결된 실행 환경에서 응답 시간·원문·자동 의심 표현·사람 평가란을 함께 저장합니다.
 
 ## 3D 피팅룸 기능
 
