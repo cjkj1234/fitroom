@@ -1,7 +1,8 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
-import {ArrowUpRight,Check,ChevronLeft,ChevronRight,SlidersHorizontal,Shirt,X,Info,Plus,ScanLine} from 'lucide-react';
+import {ArrowUpRight,Check,ChevronLeft,ChevronRight,SlidersHorizontal,Shirt,X,Info,Plus,ScanLine,Sparkles} from 'lucide-react';
 import {useWardrobeTools} from '@/lib/wardrobe/webmcp';
+import AdStudio from '@/components/ad-studio';
 import AvatarView from '@/components/avatar-view';
 import BodyEditor from '@/components/body-editor';
 import {PRODUCTS,SLOT_LABELS,getProduct} from '@/lib/wardrobe/catalog';
@@ -9,6 +10,7 @@ import {DEFAULT_BODY,parseStoredBody,STORAGE_KEY,sourceLabel} from '@/lib/wardro
 import {estimateFit,wear,remove} from '@/lib/wardrobe/fit';
 import type {BodyProfile,Outfit,Product,Slot} from '@/lib/wardrobe/types';
 export default function Home(){
+ const [surface,setSurface]=useState<'ads'|'wardrobe'>('ads');
  const [body,setBody]=useState(DEFAULT_BODY),[saved,setSaved]=useState(false),[editor,setEditor]=useState(false);
  const [outfit,setOutfit]=useState<Outfit>({top:{productId:'6170660',size:'화이트M'},bottom:{productId:'3504218',size:'30'}});
  const [selected,setSelected]=useState('6170660'),[sizes,setSizes]=useState<Record<string,string>>({}),[notice,setNotice]=useState('');
@@ -22,8 +24,9 @@ export default function Home(){
  function saveBody(b:BodyProfile){setBody(b);try{localStorage.setItem(STORAGE_KEY,JSON.stringify(b));setSaved(true);setNotice('이 브라우저에 내 체형을 저장했어요.');}catch{setSaved(false);setNotice('기기에 저장하지 못했어요. 이번 사용 중에는 적용됩니다.');}setEditor(false);}
  function deleteBody(){try{localStorage.removeItem(STORAGE_KEY);}catch{setNotice('저장된 체형을 삭제하지 못했어요. 브라우저 설정을 확인해 주세요.');return;}setBody(DEFAULT_BODY);setSaved(false);setNotice('저장한 체형을 삭제했어요. 기본 체형으로 돌아갑니다.');setEditor(false);}
  useWardrobeTools({body,outfit},items=>{setOutfit(previous=>items.reduce((o,item)=>wear(o,getProduct(item.productId)!,item.size),previous));setSizes(previous=>({...previous,...Object.fromEntries(items.map(i=>[i.productId,i.size]))}));setSelected(items[items.length-1].productId);setNotice('선택한 옷을 입었어요.');});
+ if(surface==='ads')return <AdStudio onOpenWardrobe={()=>setSurface('wardrobe')}/>;
  return <main className="fitroom-app">
-  <header className="app-header"><a className="brand" href="/" aria-label="FITROOM 홈"><span className="brand-mark"><ScanLine size={23}/></span>fitroom<span className="brand-period">.</span></a><div className="header-center"><span className="nav-active">내 피팅룸</span><span className="header-divider"/>나의 체형, 나의 스타일</div><button className="body-button" onClick={()=>setEditor(true)}><SlidersHorizontal size={16}/> 내 체형 설정</button></header>
+  <header className="app-header"><button className="brand brand-button" type="button" onClick={()=>setSurface('ads')} aria-label="FITROOM 광고 스튜디오로 이동"><span className="brand-mark"><ScanLine size={23}/></span>fitroom<span className="brand-period">.</span></button><div className="header-center"><span className="nav-active">3D 코디</span><span className="header-divider"/>나의 체형, 나의 스타일</div><button className="body-button" onClick={()=>setSurface('ads')}><Sparkles size={16}/> 광고 만들기</button></header>
   <div className="page-heading"><div><span className="eyebrow">YOUR PERSONAL WARDROBE</span><h1>오늘은, 어떻게 입을까요?</h1></div><span className="collection-count">CASUAL COLLECTION <b>08</b></span></div>
   <section className="workspace"><div className="fitting-panel"><AvatarView body={body} outfit={outfit} onDrop={id=>{const p=getProduct(id);if(p)equip(p);}}/><div className="body-strip"><div className="body-strip-title"><span className="body-dot"/><span>{saved?'저장된 내 체형':'기본 체형'}</span><span className="body-mini">{saved?'이 브라우저에 저장됨':'내 치수로 바꿔보세요'}</span></div><div className="body-numbers"><span>키 <b>{body.measurements.height}</b><small>cm</small></span><span>가슴 <b>{body.measurements.chest}</b></span><span>허리 <b>{body.measurements.waist}</b></span><button onClick={()=>setEditor(true)} aria-label="체형 수정"><SlidersHorizontal size={15}/></button></div></div></div>
   <aside className="wardrobe-panel" aria-label="부위별 옷장"><div className="wardrobe-heading"><div><Shirt size={18}/><h2>나의 옷장</h2></div><span>끌어서 입어보기</span></div>

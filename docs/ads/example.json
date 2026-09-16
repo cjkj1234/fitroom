@@ -1,0 +1,49 @@
+{
+  "notice": "기획 설명을 위해 작성한 가상의 매장·상품·광고 예시입니다. API 생성 결과가 아닙니다.",
+  "request": {
+    "version": 1,
+    "storeName": "오후옷장",
+    "product": {
+      "name": "스트라이프 반팔 티셔츠",
+      "category": "top",
+      "color": "화이트·네이비",
+      "features": ["가로 스트라이프", "라운드넥", "반팔"],
+      "material": null,
+      "priceKrw": 29000,
+      "discountPercent": null
+    },
+    "campaign": {
+      "channel": "instagram_post",
+      "audience": "일상 캐주얼 코디를 찾는 20~30대",
+      "tone": "friendly",
+      "purpose": "product_intro",
+      "cta": "view_product",
+      "additionalRequest": "과장 없이 짧고 친근하게 써 주세요."
+    }
+  },
+  "response": {
+    "drafts": [
+      {
+        "angle": "product_facts",
+        "headline": "오늘의 스트라이프 한 벌",
+        "body": "화이트·네이비 가로 스트라이프에 라운드넥을 더한 반팔 티셔츠예요. 오후옷장에서 29,000원에 만나보세요.",
+        "cta": "상품 정보를 확인해 보세요.",
+        "hashtags": ["오후옷장", "스트라이프티셔츠", "반팔티"]
+      },
+      {
+        "angle": "styling",
+        "headline": "데님과 함께 입어볼까요?",
+        "body": "화이트·네이비 스트라이프 반팔에 가지고 있는 데님을 매치해 보세요. 오늘의 캐주얼 코디를 떠올리는 작은 제안이에요.",
+        "cta": "티셔츠 상세 정보를 살펴보세요.",
+        "hashtags": ["오후옷장", "캐주얼코디", "스트라이프"]
+      },
+      {
+        "angle": "daily_scene",
+        "headline": "주말 외출에 스트라이프 한 줄",
+        "body": "주말 나들이 옷을 고르고 있다면, 화이트·네이비 스트라이프 반팔을 코디에 더해보세요. 오후옷장의 라운드넥 티셔츠를 소개해요.",
+        "cta": "상품을 자세히 만나보세요.",
+        "hashtags": ["오후옷장", "주말코디", "라운드넥"]
+      }
+    ]
+  }
+}

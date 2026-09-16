@@ -1,0 +1,240 @@
+{
+  "notice": "설계 검증 및 향후 모델 평가용 가상 입력. 모델 실행 결과가 아님.",
+  "cases": [
+    {
+      "id": "normal-top",
+      "description": "필수 정보와 판매가가 있는 상의",
+      "expectedValid": true,
+      "request": {
+        "version": 1,
+        "storeName": "오후옷장",
+        "product": {
+          "name": "스트라이프 반팔 티셔츠",
+          "category": "top",
+          "color": "화이트·네이비",
+          "features": [
+            "가로 스트라이프",
+            "라운드넥",
+            "반팔"
+          ],
+          "material": null,
+          "priceKrw": 29000,
+          "discountPercent": null
+        },
+        "campaign": {
+          "channel": "instagram_post",
+          "audience": "일상 캐주얼 코디를 찾는 20~30대",
+          "tone": "friendly",
+          "purpose": "product_intro",
+          "cta": "view_product",
+          "additionalRequest": "과장 없이 짧고 친근하게 써 주세요."
+        }
+      }
+    },
+    {
+      "id": "normal-hat-minimal",
+      "description": "소재와 가격이 없는 모자",
+      "expectedValid": true,
+      "request": {
+        "version": 1,
+        "storeName": "오후옷장",
+        "product": {
+          "name": "베이지 볼캡",
+          "category": "hat",
+          "color": "베이지",
+          "features": [
+            "볼캡 형태"
+          ],
+          "material": null,
+          "priceKrw": null,
+          "discountPercent": null
+        },
+        "campaign": {
+          "channel": "instagram_post",
+          "audience": "일상 캐주얼 코디를 찾는 20~30대",
+          "tone": "minimal",
+          "purpose": "product_intro",
+          "cta": "inquire",
+          "additionalRequest": "과장 없이 짧고 친근하게 써 주세요."
+        }
+      }
+    },
+    {
+      "id": "normal-bottom",
+      "description": "판매자가 소재를 입력한 신상품 하의",
+      "expectedValid": true,
+      "request": {
+        "version": 1,
+        "storeName": "오후옷장",
+        "product": {
+          "name": "블랙 와이드 팬츠",
+          "category": "bottom",
+          "color": "블랙",
+          "features": [
+            "와이드 실루엣",
+            "앞주머니"
+          ],
+          "material": "면 100%",
+          "priceKrw": 39000,
+          "discountPercent": null
+        },
+        "campaign": {
+          "channel": "instagram_post",
+          "audience": "일상 캐주얼 코디를 찾는 20~30대",
+          "tone": "friendly",
+          "purpose": "new_arrival",
+          "cta": "visit_store",
+          "additionalRequest": "과장 없이 짧고 친근하게 써 주세요."
+        }
+      }
+    },
+    {
+      "id": "normal-promotion",
+      "description": "확인한 할인율과 실제 판매가가 있는 할인 홍보",
+      "expectedValid": true,
+      "request": {
+        "version": 1,
+        "storeName": "오후옷장",
+        "product": {
+          "name": "스트라이프 반팔 티셔츠",
+          "category": "top",
+          "color": "화이트·네이비",
+          "features": [
+            "가로 스트라이프",
+            "라운드넥",
+            "반팔"
+          ],
+          "material": null,
+          "priceKrw": 26100,
+          "discountPercent": 10
+        },
+        "campaign": {
+          "channel": "instagram_post",
+          "audience": "일상 캐주얼 코디를 찾는 20~30대",
+          "tone": "energetic",
+          "purpose": "promotion",
+          "cta": "view_product",
+          "additionalRequest": "과장 없이 짧고 친근하게 써 주세요."
+        }
+      }
+    },
+    {
+      "id": "invalid-empty-name",
+      "description": "공백뿐인 상품명",
+      "expectedValid": false,
+      "request": {
+        "version": 1,
+        "storeName": "오후옷장",
+        "product": {
+          "name": "   ",
+          "category": "top",
+          "color": "화이트·네이비",
+          "features": [
+            "가로 스트라이프",
+            "라운드넥",
+            "반팔"
+          ],
+          "material": null,
+          "priceKrw": 29000,
+          "discountPercent": null
+        },
+        "campaign": {
+          "channel": "instagram_post",
+          "audience": "일상 캐주얼 코디를 찾는 20~30대",
+          "tone": "friendly",
+          "purpose": "product_intro",
+          "cta": "view_product",
+          "additionalRequest": "과장 없이 짧고 친근하게 써 주세요."
+        }
+      }
+    },
+    {
+      "id": "invalid-discount-range",
+      "description": "100%를 넘는 할인율",
+      "expectedValid": false,
+      "request": {
+        "version": 1,
+        "storeName": "오후옷장",
+        "product": {
+          "name": "스트라이프 반팔 티셔츠",
+          "category": "top",
+          "color": "화이트·네이비",
+          "features": [
+            "가로 스트라이프",
+            "라운드넥",
+            "반팔"
+          ],
+          "material": null,
+          "priceKrw": 29000,
+          "discountPercent": 120
+        },
+        "campaign": {
+          "channel": "instagram_post",
+          "audience": "일상 캐주얼 코디를 찾는 20~30대",
+          "tone": "friendly",
+          "purpose": "product_intro",
+          "cta": "view_product",
+          "additionalRequest": "과장 없이 짧고 친근하게 써 주세요."
+        }
+      }
+    },
+    {
+      "id": "invalid-feature-length",
+      "description": "상품 특징 하나가 100자를 초과함",
+      "expectedValid": false,
+      "request": {
+        "version": 1,
+        "storeName": "오후옷장",
+        "product": {
+          "name": "스트라이프 반팔 티셔츠",
+          "category": "top",
+          "color": "화이트·네이비",
+          "features": [
+            "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가"
+          ],
+          "material": null,
+          "priceKrw": 29000,
+          "discountPercent": null
+        },
+        "campaign": {
+          "channel": "instagram_post",
+          "audience": "일상 캐주얼 코디를 찾는 20~30대",
+          "tone": "friendly",
+          "purpose": "product_intro",
+          "cta": "view_product",
+          "additionalRequest": "과장 없이 짧고 친근하게 써 주세요."
+        }
+      }
+    },
+    {
+      "id": "invalid-promotion-missing-discount",
+      "description": "할인 홍보를 골랐지만 할인율이 없음",
+      "expectedValid": false,
+      "request": {
+        "version": 1,
+        "storeName": "오후옷장",
+        "product": {
+          "name": "스트라이프 반팔 티셔츠",
+          "category": "top",
+          "color": "화이트·네이비",
+          "features": [
+            "가로 스트라이프",
+            "라운드넥",
+            "반팔"
+          ],
+          "material": null,
+          "priceKrw": 29000,
+          "discountPercent": null
+        },
+        "campaign": {
+          "channel": "instagram_post",
+          "audience": "일상 캐주얼 코디를 찾는 20~30대",
+          "tone": "friendly",
+          "purpose": "promotion",
+          "cta": "view_product",
+          "additionalRequest": "과장 없이 짧고 친근하게 써 주세요."
+        }
+      }
+    }
+  ]
+}

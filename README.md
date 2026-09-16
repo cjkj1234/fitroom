@@ -1,5 +1,27 @@
 # FITROOM
 
+## 프로젝트 방향과 현재 상태
+
+2026-09-16부터 **의류 소상공인을 위한 코디·광고 문구 제작 서비스**를 목표로 진행합니다. 판매자 입력, AI 생성 요청, 결과 편집과 복사·TXT·PNG 저장을 구현했으며 기존 3D 피팅룸을 코디 참고 화면으로 유지합니다. 실제 AI 호출에는 서버 환경변수 `OPENAI_API_KEY`가 필요합니다.
+
+- [기획서와 첫 버전 범위](docs/PROJECT_PLAN.md)
+- [광고 제작 입력·출력 설계와 예시](docs/AD_CREATION_SPEC.md)
+- [일정과 제출 마감](docs/TIMELINE.md)
+- [개인 업무일지 초안](docs/journal/2026-09-16.md)
+
+GitHub 제출 저장소와 최종 보고서 PDF는 추후 준비합니다.
+
+## 현재 구현된 광고 스튜디오
+
+- 매장명, 상품명, 종류, 색상, 특징, 소재, 가격·할인율과 광고 조건 입력.
+- `gpt-5-mini` Responses API와 Structured Outputs를 사용한 관점별 초안 3개 생성.
+- 상품 특징·스타일링·일상 장면 초안의 제목, 본문, CTA, 해시태그 직접 편집.
+- 편집한 결과 복사, TXT 저장, 선택한 상품 이미지와 함께 PNG 광고 카드 저장.
+- 상품 이미지는 브라우저 미리보기와 PNG 생성에만 사용하며 AI 요청·서버 저장에서 제외.
+- 입력 누락, 할인율 누락, 연결 실패, 시간 초과, 결과 형식 오류 안내. 실패 시 기존 편집 결과 보존.
+
+## 함께 제공되는 3D 피팅룸
+
 내 체형의 3D 아바타에 무신사 상품을 조합해 입히고, 공개 실측으로 예상 차이를 확인하는 가상 옷장입니다.
 
 ## 실행
@@ -14,7 +36,9 @@ npm run build
 
 Node.js 22.13 이상. Sites의 portable 실행 프로필과 Vinext/React/TypeScript, Three.js를 사용합니다.
 
-## 제공 기능
+AI 생성은 서버 실행 환경에 `OPENAI_API_KEY`를 비밀값으로 설정해야 동작합니다. 키가 없으면 화면에서 연결 설정 필요 상태를 명확히 표시하며 예시 문구를 실제 생성 결과처럼 대신 보여주지 않습니다.
+
+## 3D 피팅룸 기능
 
 - 8개 실제 상품: 상의 3, 하의 3, 모자 2. 상품 선택, 드래그/버튼 착용, 부위별 교체·벗기기, 사이즈 변경, 원본 구매 링크.
 - MakeHuman CC0 자산 기반 3D 아바타: 회전·확대·시점 전환, 키와 체형 변형.
@@ -33,7 +57,10 @@ Node.js 22.13 이상. Sites의 portable 실행 프로필과 Vinext/React/TypeScr
 
 ## 구조
 
-- `app/page.tsx`: 피팅룸 및 상품/착용 상태
+- `app/page.tsx`, `components/ad-studio.tsx`: 광고 스튜디오와 3D 피팅룸 전환, 판매자 입력·결과 편집·저장
+- `app/api/ads/generate/route.ts`: 서버 전용 OpenAI Responses API 호출과 실패 처리
+- `lib/ads/contracts.ts`: 요청·응답 검사, 모델 출력 JSON Schema, 프롬프트 정책
+- `lib/ads/contracts.test.ts`: 할인 예외, 출력 관점 중복, Responses API 텍스트 추출 검사
 - `components/avatar-view.tsx`, `lib/wardrobe/geometry.ts`: 3D 모델 및 상품 실측 기반 참고 의상
 - `components/body-editor.tsx`, `lib/wardrobe/photo-worker.ts`: 체형 설정 및 기기 내 사진 추정
 - `lib/wardrobe/body.ts`, `fit.ts`, `photo-estimate.ts`: 검증 가능한 계산과 저장 데이터 처리

@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "properties": {
+    "drafts": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "properties": {
+          "angle": { "type": "string", "enum": ["product_facts", "styling", "daily_scene"] },
+          "headline": { "type": "string", "description": "40자 이내의 광고 제목" },
+          "body": { "type": "string", "description": "220자 이내의 광고 본문. 제공된 상품 사실만 활용" },
+          "cta": { "type": "string", "description": "선택한 목적에 맞는 40자 이내의 행동 유도 문구" },
+          "hashtags": { "type": "array", "minItems": 3, "maxItems": 6, "items": { "type": "string", "description": "#과 공백 없이 20자 이내" } }
+        },
+        "required": ["angle", "headline", "body", "cta", "hashtags"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["drafts"],
+  "additionalProperties": false
+}
