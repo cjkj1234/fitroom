@@ -10,7 +10,6 @@ import {Textarea} from '@/components/ui/textarea';
 import {adRequestSchema,adResponseSchema,firstValidationMessage,type AdDraft,type AdRequest} from '@/lib/ads/contracts';
 import {formatDraftText,parseOptionalNumberInput,safeDownloadBaseName} from '@/lib/ads/client-utils';
 
-type Props={onOpenWardrobe:()=>void};
 type FormState={
  storeName:string;productName:string;category:AdRequest['product']['category'];color:string;features:string;material:string;price:string;discount:string;
  audience:string;tone:AdRequest['campaign']['tone'];purpose:AdRequest['campaign']['purpose'];cta:AdRequest['campaign']['cta'];additionalRequest:string;
@@ -41,7 +40,7 @@ function wrapText(context:CanvasRenderingContext2D,text:string,x:number,y:number
 }
 function loadImage(src:string){return new Promise<HTMLImageElement>((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(new Error('image'));image.src=src;});}
 
-export default function AdStudio({onOpenWardrobe}:Props){
+export default function AdStudio(){
  const [imageUrl,setImageUrl]=useState('/catalog/6170660.png');
  const [form,setForm]=useState<FormState>(INITIAL_FORM);
  const [drafts,setDrafts]=useState<EditableDraft[]>([]);
@@ -98,7 +97,7 @@ export default function AdStudio({onOpenWardrobe}:Props){
   }catch{setNotice('PNG를 만들지 못했어요. 다른 이미지를 선택해 다시 시도해 주세요.');}
  }
  return <main className="ad-app">
-  <header className="ad-header"><a className="brand" href="/" aria-label="FITROOM 광고 스튜디오 홈"><span className="brand-mark"><ScanLine size={23}/></span>fitroom<span className="brand-period">.</span></a><div className="ad-nav"><span className="ad-nav-active">광고 스튜디오</span><span>상품 정보로 3가지 문구 만들기</span></div><Button type="button" variant="outline" className="wardrobe-link" onClick={onOpenWardrobe}><Shirt/>3D 코디 열기</Button></header>
+  <header className="ad-header"><a className="brand" href="/" aria-label="FITROOM 역할 선택으로 이동"><span className="brand-mark"><ScanLine size={23}/></span>fitroom<span className="brand-period">.</span></a><div className="ad-nav"><span className="ad-nav-active">판매자 광고 스튜디오</span><span>상품 정보로 3가지 문구 만들기</span></div><Button asChild variant="outline" className="wardrobe-link"><a href="/wardrobe"><Shirt/>이용자 3D 옷장</a></Button></header>
   <section className="ad-hero"><div><span className="eyebrow">AI COPY WORKBENCH</span><h1>상품의 매력을 광고 문구로 바꿔보세요.</h1><p>확인된 상품 정보만 사용해 서로 다른 관점의 초안 3개를 만듭니다.</p></div><div className="ad-step"><b>01</b><span>정보 입력</span><i/><b>02</b><span>AI 생성</span><i/><b>03</b><span>편집·저장</span></div></section>
   <form className="ad-workspace" onSubmit={event=>{event.preventDefault();void generate();}}>
    <section className="ad-card product-visual-card" aria-labelledby="visual-title"><div className="ad-card-heading"><span>01</span><div><h2 id="visual-title">상품 이미지</h2><p>이미지는 브라우저 미리보기에만 사용돼요.</p></div></div><div className="product-visual"><img src={imageUrl} alt="광고 문구를 만들 상품 미리보기"/><span>미리보기</span></div><label className="image-upload"><Upload size={16}/><span>내 상품 이미지 선택</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={event=>chooseImage(event.target.files?.[0])}/></label><p className="privacy-copy">사진은 AI에 전송하거나 저장하지 않습니다.</p></section>

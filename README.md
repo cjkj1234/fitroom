@@ -2,7 +2,7 @@
 
 ## 프로젝트 방향과 현재 상태
 
-2026-09-16부터 **의류 소상공인을 위한 코디·광고 문구 제작 서비스**를 목표로 진행합니다. 판매자 입력, AI 생성 요청, 결과 편집과 복사·TXT·PNG 저장을 구현했으며 기존 3D 피팅룸을 코디 참고 화면으로 유지합니다. 실제 AI 호출에는 서버 환경변수 `OPENAI_API_KEY`가 필요합니다.
+2026-09-16부터 **의류 소상공인을 위한 코디·광고 문구 제작 서비스**를 목표로 진행합니다. 첫 화면에서 판매자와 이용자의 공간을 구분하고, 판매자 입력·AI 생성·결과 편집·저장과 이용자용 3D 피팅룸을 각각의 페이지로 제공합니다. 실제 AI 호출에는 서버 환경변수 `OPENAI_API_KEY`가 필요합니다.
 
 - [기획서와 첫 버전 범위](docs/PROJECT_PLAN.md)
 - [광고 제작 입력·출력 설계와 예시](docs/AD_CREATION_SPEC.md)
@@ -12,6 +12,14 @@
 - [프로젝트 보고서 초안](docs/report/REPORT_DRAFT.md)
 
 GitHub Actions 검증 설정과 보고서 초안을 준비했습니다. GitHub 제출 저장소 게시와 최종 보고서 PDF는 로그인 복구와 실제 모델 평가 후 완료합니다.
+
+## 페이지 구성
+
+- `/`: 판매자와 이용자 역할 선택
+- `/seller`: 의류 판매자용 AI 광고 스튜디오
+- `/wardrobe`: 옷을 찾는 이용자용 3D 웹 옷장
+
+첫 버전의 판매자 페이지는 상품 정보 입력과 광고 제작까지 다룹니다. 상품을 계정별로 저장하고 이용자 옷장에 게시하는 판매자 상품 관리 기능은 아직 연결하지 않았습니다.
 
 ## 현재 구현된 광고 스튜디오
 
@@ -63,7 +71,9 @@ AI 생성은 서버 실행 환경에 `OPENAI_API_KEY`를 비밀값으로 설정�
 
 ## 구조
 
-- `app/page.tsx`, `components/ad-studio.tsx`: 광고 스튜디오와 3D 피팅룸 전환, 판매자 입력·결과 편집·저장
+- `app/page.tsx`: 판매자·이용자 역할 선택
+- `app/seller/page.tsx`, `components/ad-studio.tsx`: 판매자 광고 입력·생성·편집·저장
+- `app/wardrobe/page.tsx`, `components/wardrobe.tsx`: 이용자 3D 피팅룸과 상품 실측 비교
 - `app/api/ads/generate/route.ts`: 서버 전용 OpenAI Responses API 호출과 실패 처리
 - `lib/ads/contracts.ts`: 요청·응답 검사, 모델 출력 JSON Schema, 프롬프트 정책
 - `lib/ads/contracts.test.ts`: 할인 예외, 출력 관점 중복, Responses API 텍스트 추출 검사

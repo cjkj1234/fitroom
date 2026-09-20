@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FITROOM — 의류 판매자를 위한 AI 광고 스튜디오",
-  description: "상품 정보를 입력하면 서로 다른 관점의 의류 광고 문구 초안 3개를 만들어보세요.",
+  title: "FITROOM — 판매자와 이용자를 위한 패션 워크스페이스",
+  description: "판매자는 AI 광고 문구를 만들고, 이용자는 내 체형에 가까운 3D 옷장에서 코디와 실측을 확인하세요.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
