@@ -25,3 +25,8 @@ test('provider rate limit becomes a safe application error',async()=>{
  const fetcher=async()=>new Response('{}',{status:429});
  await assert.rejects(()=>generateAdDrafts(request,'test-key',fetcher),error=>error instanceof AdGenerationError&&error.code==='rate_limited'&&error.status===429);
 });
+
+test('malformed provider JSON is reported as an invalid response',async()=>{
+ const fetcher=async()=>new Response('not-json',{status:200,headers:{'Content-Type':'application/json'}});
+ await assert.rejects(()=>generateAdDrafts(request,'test-key',fetcher),error=>error instanceof AdGenerationError&&error.code==='invalid_response');
+});

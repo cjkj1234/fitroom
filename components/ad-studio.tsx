@@ -8,6 +8,7 @@ import {Input} from '@/components/ui/input';
 import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
 import {Textarea} from '@/components/ui/textarea';
 import {adRequestSchema,adResponseSchema,firstValidationMessage,type AdDraft,type AdRequest} from '@/lib/ads/contracts';
+import {formatDraftText,parseOptionalNumberInput,safeDownloadBaseName} from '@/lib/ads/client-utils';
 
 type Props={onOpenWardrobe:()=>void};
 type FormState={
@@ -28,15 +29,10 @@ const ANGLE_LABELS:Record<AdDraft['angle'],{number:string;title:string;descripti
 };
 
 const nullable=(value:string)=>value.trim()||null;
-const nullableNumber=(value:string)=>{const clean=value.replace(/[^0-9]/g,'');return clean?Number(clean):null;};
 function toRequest(form:FormState):AdRequest{
- return {version:1,storeName:form.storeName,product:{name:form.productName,category:form.category,color:form.color,features:form.features.split(/[,/\n]+/).map(value=>value.trim()).filter(Boolean),material:nullable(form.material),priceKrw:nullableNumber(form.price),discountPercent:nullableNumber(form.discount)},campaign:{channel:'instagram_post',audience:form.audience,tone:form.tone,purpose:form.purpose,cta:form.cta,additionalRequest:nullable(form.additionalRequest)}};
+ return {version:1,storeName:form.storeName,product:{name:form.productName,category:form.category,color:form.color,features:form.features.split(/[,/\n]+/).map(value=>value.trim()).filter(Boolean),material:nullable(form.material),priceKrw:parseOptionalNumberInput(form.price),discountPercent:parseOptionalNumberInput(form.discount)},campaign:{channel:'instagram_post',audience:form.audience,tone:form.tone,purpose:form.purpose,cta:form.cta,additionalRequest:nullable(form.additionalRequest)}};
 }
 function asEditable(draft:AdDraft):EditableDraft{return {...draft,hashtags:draft.hashtags.map(tag=>`#${tag}`).join(' ')};}
-function draftText(draft:EditableDraft){
- const hashtags=draft.hashtags.split(/[\s,]+/).filter(Boolean).map(tag=>tag.startsWith('#')?tag:`#${tag}`).join(' ');
- return `${draft.headline}\n\n${draft.body}\n\n${draft.cta}\n\n${hashtags}`;
-}
 function wrapText(context:CanvasRenderingContext2D,text:string,x:number,y:number,maxWidth:number,lineHeight:number){
  let line='';let cursor=y;
  for(const character of [...text]){const next=line+character;if(context.measureText(next).width>maxWidth&&line){context.fillText(line,x,cursor);line=character;cursor+=lineHeight;}else line=next;}
@@ -85,8 +81,8 @@ export default function AdStudio({onOpenWardrobe}:Props){
   finally{setBusy(false);}
  }
  function updateDraft<K extends keyof EditableDraft>(key:K,value:EditableDraft[K]){setDrafts(previous=>previous.map((draft,index)=>index===active?{...draft,[key]:value}:draft));}
- async function copyDraft(){if(!activeDraft)return;try{await navigator.clipboard.writeText(draftText(activeDraft));setNotice('선택한 문구를 복사했어요.');}catch{setNotice('복사하지 못했어요. 문구를 직접 선택해 주세요.');}}
- function downloadText(){if(!activeDraft)return;const blob=new Blob([draftText(activeDraft)],{type:'text/plain;charset=utf-8'});const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download=`${form.productName||'상품'}-광고문구.txt`;anchor.click();URL.revokeObjectURL(url);setNotice('TXT 파일을 저장했어요.');}
+ async function copyDraft(){if(!activeDraft)return;try{await navigator.clipboard.writeText(formatDraftText(activeDraft));setNotice('선택한 문구를 복사했어요.');}catch{setNotice('복사하지 못했어요. 문구를 직접 선택해 주세요.');}}
+ function downloadText(){if(!activeDraft)return;const blob=new Blob([formatDraftText(activeDraft)],{type:'text/plain;charset=utf-8'});const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download=`${safeDownloadBaseName(form.productName)}-광고문구.txt`;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);setNotice('TXT 파일을 저장했어요.');}
  async function downloadPng(){
   if(!activeDraft)return;
   try{
@@ -98,7 +94,7 @@ export default function AdStudio({onOpenWardrobe}:Props){
    context.fillStyle='#555961';context.font='28px Arial';y=wrapText(context,activeDraft.body,120,y+22,840,43);
    context.fillStyle='#202227';context.font='700 27px Arial';y=wrapText(context,activeDraft.cta,120,y+22,840,42);
    context.fillStyle='#2557d6';context.font='24px Arial';wrapText(context,activeDraft.hashtags,120,y+18,840,36);
-   const blob=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw new Error('blob');const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download=`${form.productName||'상품'}-광고카드.png`;anchor.click();URL.revokeObjectURL(url);setNotice('PNG 광고 카드를 저장했어요.');
+   const blob=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw new Error('blob');const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download=`${safeDownloadBaseName(form.productName)}-광고카드.png`;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);setNotice('PNG 광고 카드를 저장했어요.');
   }catch{setNotice('PNG를 만들지 못했어요. 다른 이미지를 선택해 다시 시도해 주세요.');}
  }
  return <main className="ad-app">

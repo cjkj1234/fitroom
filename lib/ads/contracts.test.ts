@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {adRequestSchema,adResponseSchema,extractOpenAIText} from './contracts';
+import {adRequestSchema,adResponseSchema,extractOpenAIText,firstValidationMessage} from './contracts';
 
 const request={
  version:1 as const,storeName:'오후옷장',
@@ -15,5 +15,6 @@ const drafts=[
 
 test('valid ad request is accepted',()=>{assert.equal(adRequestSchema.safeParse(request).success,true);});
 test('promotion requires a confirmed discount percentage',()=>{const result=adRequestSchema.safeParse({...request,product:{...request.product,discountPercent:null},campaign:{...request.campaign,purpose:'promotion'}});assert.equal(result.success,false);});
+test('invalid price uses a seller-friendly validation message',()=>{const result=adRequestSchema.safeParse({...request,product:{...request.product,priceKrw:Number.NaN}});assert.equal(result.success,false);if(!result.success)assert.equal(firstValidationMessage(result.error),'판매가는 숫자로 입력해 주세요.');});
 test('response requires three unique angles and headlines',()=>{assert.equal(adResponseSchema.safeParse({drafts}).success,true);assert.equal(adResponseSchema.safeParse({drafts:[drafts[0],{...drafts[1],angle:'product_facts'},drafts[2]]}).success,false);});
 test('response text is extracted from the Responses API output',()=>{assert.equal(extractOpenAIText({output:[{type:'message',content:[{type:'output_text',text:'{"drafts":[]}'}]}]}),'{"drafts":[]}');assert.equal(extractOpenAIText({output:[]}),null);});

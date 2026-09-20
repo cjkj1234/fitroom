@@ -3,6 +3,7 @@ import {z} from 'zod';
 const codePointLength=(value:string)=>[...value].length;
 const requiredText=(max:number)=>z.string().trim().min(1,'내용을 입력해 주세요.').refine(value=>codePointLength(value)<=max,`${max}자 이내로 입력해 주세요.`);
 const optionalText=(max:number)=>z.union([requiredText(max),z.null()]);
+const optionalInteger=(topic:string,min:number,max:number)=>z.number({invalid_type_error:`${topic} 숫자로 입력해 주세요.`}).int(`${topic} 정수로 입력해 주세요.`).min(min,`${topic} ${min} 이상이어야 해요.`).max(max,`${topic} 입력할 수 있는 범위를 넘었어요.`).nullable();
 
 export const AD_ANGLES=['product_facts','styling','daily_scene'] as const;
 
@@ -15,8 +16,8 @@ export const adRequestSchema=z.object({
   color:requiredText(40),
   features:z.array(requiredText(100)).min(1,'상품 특징을 한 가지 이상 입력해 주세요.').max(5,'상품 특징은 다섯 가지까지 입력할 수 있어요.'),
   material:optionalText(100),
-  priceKrw:z.number().int().min(0).max(100_000_000).nullable(),
-  discountPercent:z.number().int().min(1).max(99).nullable(),
+  priceKrw:optionalInteger('판매가는',0,100_000_000),
+  discountPercent:optionalInteger('할인율은',1,99),
  }).strict(),
  campaign:z.object({
   channel:z.literal('instagram_post'),

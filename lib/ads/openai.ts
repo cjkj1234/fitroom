@@ -29,7 +29,8 @@ export async function generateAdDrafts(request:AdRequest,apiKey:string,fetcher:F
    if(response.status>=500)throw new AdGenerationError('provider_unavailable','AI 서비스가 잠시 응답하지 않아요. 다시 시도해 주세요.',502);
    throw new AdGenerationError('generation_failed','광고 문구를 만들지 못했어요. 잠시 뒤 다시 시도해 주세요.',502);
   }
-  const responseBody:unknown=await response.json();
+  let responseBody:unknown;
+  try{responseBody=await response.json();}catch{throw new AdGenerationError('invalid_response','광고 문구 응답을 읽지 못했어요. 다시 시도해 주세요.',502);}
   const text=extractOpenAIText(responseBody);
   if(!text)throw new AdGenerationError('empty_response','완성된 광고 문구를 받지 못했어요. 다시 시도해 주세요.',502);
   let candidate:unknown;
