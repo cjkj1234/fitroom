@@ -13,7 +13,7 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "evaluate:ads": "node --import tsx scripts/evaluate-ads.ts",
-    "test": "node --import tsx --test lib/wardrobe/*.test.ts lib/ads/*.test.ts",
+    "test": "node --import tsx --test lib/wardrobe/*.test.ts lib/ads/*.test.ts lib/seller/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

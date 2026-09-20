@@ -16,10 +16,20 @@ GitHub Actions 검증 설정과 보고서 초안을 준비했습니다. GitHub �
 ## 페이지 구성
 
 - `/`: 판매자와 이용자 역할 선택
-- `/seller`: 의류 판매자용 AI 광고 스튜디오
+- `/seller`: 판매자 대시보드와 등록 현황
+- `/seller/products`: 상품 기본 정보·가격·재고·사이즈 실측 관리
+- `/seller/ads`: 등록 상품을 불러오는 AI 광고 스튜디오
 - `/wardrobe`: 옷을 찾는 이용자용 3D 웹 옷장
 
-첫 버전의 판매자 페이지는 상품 정보 입력과 광고 제작까지 다룹니다. 상품을 계정별로 저장하고 이용자 옷장에 게시하는 판매자 상품 관리 기능은 아직 연결하지 않았습니다.
+판매자 상품의 텍스트 정보는 `fitroom.seller.products.v1` 키로 같은 브라우저에 임시 저장합니다. 선택한 상품은 광고 스튜디오에 자동으로 채워집니다. 계정별 서버 저장과 이용자 옷장 게시 기능은 아직 연결하지 않았습니다.
+
+## 판매자 센터
+
+- 등록 상품 수와 가격·재고·필수 실측 완료 상품 수를 보여주는 대시보드.
+- 상점명, 상품명, 카테고리, 색상, 특징, 소재, 판매가, 재고 입력.
+- 상의·하의·모자에 맞는 사이즈별 실측표 입력과 게시 준비 판정.
+- 상품 초안 수정·삭제와 선택 상품의 AI 광고 제작 연결.
+- 상품 이미지는 현재 세션의 미리보기에만 사용하며 브라우저 저장에서도 제외.
 
 ## 현재 구현된 광고 스튜디오
 
@@ -72,7 +82,10 @@ AI 생성은 서버 실행 환경에 `OPENAI_API_KEY`를 비밀값으로 설정�
 ## 구조
 
 - `app/page.tsx`: 판매자·이용자 역할 선택
-- `app/seller/page.tsx`, `components/ad-studio.tsx`: 판매자 광고 입력·생성·편집·저장
+- `app/seller/page.tsx`, `components/seller-dashboard.tsx`: 판매자 현황과 작업 흐름
+- `app/seller/products/page.tsx`, `components/seller-products.tsx`: 상품·재고·사이즈 실측 등록과 브라우저 저장
+- `app/seller/ads/page.tsx`, `components/ad-studio.tsx`: 선택 상품 광고 입력·생성·편집·저장
+- `lib/seller/products.ts`: 판매자 상품 저장 계약과 게시 준비 판정
 - `app/wardrobe/page.tsx`, `components/wardrobe.tsx`: 이용자 3D 피팅룸과 상품 실측 비교
 - `app/api/ads/generate/route.ts`: 서버 전용 OpenAI Responses API 호출과 실패 처리
 - `lib/ads/contracts.ts`: 요청·응답 검사, 모델 출력 JSON Schema, 프롬프트 정책

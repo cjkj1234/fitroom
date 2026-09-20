@@ -1,14 +1,16 @@
 'use client';
 
 import {useEffect,useRef,useState} from 'react';
-import {AlertCircle,ArrowRight,Check,Copy,Download,FileImage,ImagePlus,Loader2,RefreshCw,ScanLine,Shirt,Sparkles,Upload} from 'lucide-react';
+import {AlertCircle,ArrowRight,Check,Copy,Download,FileImage,ImagePlus,Loader2,RefreshCw,Sparkles,Upload} from 'lucide-react';
 import {Button} from '@/components/ui/button';
+import SellerHeader from '@/components/seller-header';
 import {Empty,EmptyDescription,EmptyHeader,EmptyMedia,EmptyTitle} from '@/components/ui/empty';
 import {Input} from '@/components/ui/input';
 import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
 import {Textarea} from '@/components/ui/textarea';
 import {adRequestSchema,adResponseSchema,firstValidationMessage,type AdDraft,type AdRequest} from '@/lib/ads/contracts';
 import {formatDraftText,parseOptionalNumberInput,safeDownloadBaseName} from '@/lib/ads/client-utils';
+import {SELLER_PRODUCTS_STORAGE_KEY,parseStoredSellerProducts} from '@/lib/seller/products';
 
 type FormState={
  storeName:string;productName:string;category:AdRequest['product']['category'];color:string;features:string;material:string;price:string;discount:string;
@@ -52,6 +54,7 @@ export default function AdStudio(){
  const [generationMeta,setGenerationMeta]=useState('');
  const objectUrl=useRef<string|null>(null);
  useEffect(()=>()=>{if(objectUrl.current)URL.revokeObjectURL(objectUrl.current);},[]);
+ useEffect(()=>{try{const id=new URLSearchParams(window.location.search).get('product');if(!id)return;const product=parseStoredSellerProducts(localStorage.getItem(SELLER_PRODUCTS_STORAGE_KEY)).find(item=>item.id===id);if(!product)return;setForm(previous=>({...previous,storeName:product.storeName,productName:product.name,category:product.category,color:product.color,features:product.features.join(', '),material:product.material??'',price:product.priceKrw===null?'':String(product.priceKrw)}));setNotice(`‘${product.name}’ 상품 정보를 불러왔어요.`);}catch{}},[]);
  useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),2600);return()=>clearTimeout(timer);},[notice]);
  const stale=Boolean(drafts.length&&generatedFrom&&generatedFrom!==JSON.stringify(form));
  const activeDraft=drafts[active];
@@ -97,7 +100,7 @@ export default function AdStudio(){
   }catch{setNotice('PNG를 만들지 못했어요. 다른 이미지를 선택해 다시 시도해 주세요.');}
  }
  return <main className="ad-app">
-  <header className="ad-header"><a className="brand" href="/" aria-label="FITROOM 역할 선택으로 이동"><span className="brand-mark"><ScanLine size={23}/></span>fitroom<span className="brand-period">.</span></a><div className="ad-nav"><span className="ad-nav-active">판매자 광고 스튜디오</span><span>상품 정보로 3가지 문구 만들기</span></div><Button asChild variant="outline" className="wardrobe-link"><a href="/wardrobe"><Shirt/>이용자 3D 옷장</a></Button></header>
+  <SellerHeader active="ads"/>
   <section className="ad-hero"><div><span className="eyebrow">AI COPY WORKBENCH</span><h1>상품의 매력을 광고 문구로 바꿔보세요.</h1><p>확인된 상품 정보만 사용해 서로 다른 관점의 초안 3개를 만듭니다.</p></div><div className="ad-step"><b>01</b><span>정보 입력</span><i/><b>02</b><span>AI 생성</span><i/><b>03</b><span>편집·저장</span></div></section>
   <form className="ad-workspace" onSubmit={event=>{event.preventDefault();void generate();}}>
    <section className="ad-card product-visual-card" aria-labelledby="visual-title"><div className="ad-card-heading"><span>01</span><div><h2 id="visual-title">상품 이미지</h2><p>이미지는 브라우저 미리보기에만 사용돼요.</p></div></div><div className="product-visual"><img src={imageUrl} alt="광고 문구를 만들 상품 미리보기"/><span>미리보기</span></div><label className="image-upload"><Upload size={16}/><span>내 상품 이미지 선택</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={event=>chooseImage(event.target.files?.[0])}/></label><p className="privacy-copy">사진은 AI에 전송하거나 저장하지 않습니다.</p></section>
