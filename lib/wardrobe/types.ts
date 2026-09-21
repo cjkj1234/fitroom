@@ -12,7 +12,8 @@ export type Product = {
   url: string; checkedAt: string; sizes: SizeMeasurements[]; defaultSize: string;
   silhouette: 'tee' | 'vneck' | 'stripe' | 'wide' | 'straight' | 'cap';
   elasticWaist?: boolean; adjustableHat?: boolean; note?: string;
-  measurementBasis?: string; image: string;
+  measurementBasis?: string; image: string; source: 'demo' | 'seller';
+  sellerProductId?: string; priceKrw?: number; stock?: number;
 };
 export type Outfit = Partial<Record<Slot, { productId: string; size: string }>>;
 export type FitEstimate = { label: string; value: number | null; unit: string; detail: string; source?: InputSource; kind: 'difference' | 'length' | 'unavailable' };

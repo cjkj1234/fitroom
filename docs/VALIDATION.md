@@ -4,7 +4,7 @@
 
 Production build and TypeScript checks passed on 2026-09-15. The local preview returned HTTP 200. A separate local build folder was used after macOS cloud-only files blocked reads in the original Documents folder.
 
-18 automated tests cover catalog identifiers/default sizes, flat-width/circumference conversion, negative ease, missing dimensions, elastic waist and adjustable cap deferral, slot replacement/removal, invalid sizes, body ranges, presets, storage normalization, finite garment geometry, fixed garment dimensions across body girths, ellipse math, photo postprocessing, manual input precedence, bad photo evidence, and WebMCP input validation.
+Automated tests cover the small-shop demo catalog, seller publishing and migration, flat-width/circumference conversion, negative ease, missing dimensions, elastic waist and adjustable cap deferral, slot replacement/removal, invalid sizes, body ranges, presets, storage normalization, finite garment geometry, fixed garment dimensions across body girths, ellipse math, photo postprocessing, manual input precedence, bad photo evidence, and WebMCP input validation.
 
 The MakeHuman GLB was checked for valid indices, buffers, finite coordinates and named morph targets. Neutral circumference sections were calibrated in asset generation. Garment thumbnail images are z-buffered renders of the same geometry used by the browser.
 

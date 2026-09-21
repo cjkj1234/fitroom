@@ -8,9 +8,9 @@ import {makeGarment,disposeGroup} from './geometry';
 import {ellipseCircumference,estimatePhotoBody,type PhotoEvidence} from './photo-estimate';
 import {validateWearRequests} from './webmcp';
 
-test('catalog contains eight real product links and valid available default sizes',()=>{
+test('catalog contains eight small-shop demo products and valid available default sizes',()=>{
  assert.equal(PRODUCTS.length,8);assert.equal(new Set(PRODUCTS.map(p=>p.id)).size,8);
- for(const p of PRODUCTS){assert.equal(new URL(p.url).hostname,'www.musinsa.com');assert.ok(p.sizes.some(s=>s.label===p.defaultSize));for(const s of p.sizes)for(const [key,n] of Object.entries(s))if(key!=='label'&&n!==undefined)assert.ok(typeof n==='number'&&n>0);}
+ for(const p of PRODUCTS){assert.equal(p.source,'demo');assert.equal(p.url,'');assert.ok(p.priceKrw&&p.priceKrw>0);assert.ok(p.sizes.some(s=>s.label===p.defaultSize));for(const s of p.sizes)for(const [key,n] of Object.entries(s))if(key!=='label'&&n!==undefined)assert.ok(typeof n==='number'&&n>0);}
  assert.deepEqual(['top','bottom','hat'].map(slot=>PRODUCTS.filter(p=>p.slot===slot).length),[3,3,2]);
 });
 test('half-width and circumference inputs produce the same chest ease',()=>{
@@ -30,7 +30,7 @@ test('fixed caps can compare head circumference when adjustment is absent',()=>{
  const p={...getProduct('4658117')!,adjustableHat:false};assert.equal(estimateFit(DEFAULT_BODY,p,{label:'58',headCirc:58})[0].value,1);
 });
 test('wearing or replacing a slot preserves other slots and never mutates prior state',()=>{
- const first=wear({},getProduct('3504218')!,'30'),second=wear(first,PRODUCTS[0],'M'),third=wear(second,getProduct('6170660')!,'화이트L');
+ const first=wear({},getProduct('3504218')!,'30'),second=wear(first,PRODUCTS[0],'M'),third=wear(second,getProduct('6170660')!,'L');
  assert.deepEqual(first,{bottom:{productId:'3504218',size:'30'}});assert.deepEqual(third.bottom,first.bottom);assert.equal(third.top?.productId,'6170660');assert.equal(second.top?.productId,'3777371');assert.deepEqual(remove(third,'top'),first);
 });
 test('unknown size is rejected without state changes',()=>{const old={};assert.throws(()=>wear(old,PRODUCTS[0],'FAKE'));assert.deepEqual(old,{});});
@@ -69,5 +69,5 @@ test('photo processing rejects multiple people, cropped images and wrong orienta
 test('photo input must be finite and within the supported height range',()=>assert.throws(()=>estimatePhotoBody(evidence(),evidence(true),NaN,DEFAULT_BODY)));
 test('WebMCP rejects invalid batches atomically',()=>{
  assert.deepEqual(validateWearRequests({items:[{productId:'3777371',size:'M'}]}),[{productId:'3777371',size:'M'}]);
- assert.throws(()=>validateWearRequests({items:[{productId:'3777371',size:'M'},{productId:'6170660',size:'화이트M'}]}));assert.throws(()=>validateWearRequests({items:[{productId:'3777371',size:'missing'}]}));
+ assert.throws(()=>validateWearRequests({items:[{productId:'3777371',size:'M'},{productId:'6170660',size:'M'}]}));assert.throws(()=>validateWearRequests({items:[{productId:'3777371',size:'missing'}]}));
 });
