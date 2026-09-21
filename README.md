@@ -19,7 +19,7 @@ GitHub Actions 검증 설정과 보고서 초안을 준비했습니다. GitHub �
 - `/seller`: 판매자 대시보드와 등록 현황
 - `/seller/products`: 상품 기본 정보·가격·재고·사이즈 실측 관리
 - `/seller/ads`: 등록 상품을 불러오는 AI 광고 스튜디오
-- `/wardrobe`: 옷을 찾는 이용자용 3D 웹 옷장
+- `/wardrobe`: 소상공인 상점 거리를 둘러보고 매장별 옷을 입어보는 3D 가상 패션 월드
 
 판매자 상품의 텍스트 정보는 `fitroom.seller.products.v1` 키로 같은 브라우저에 임시 저장합니다. 선택한 상품은 광고 스튜디오에 자동으로 채워집니다. 계정별 서버 저장과 이용자 옷장 게시 기능은 아직 연결하지 않았습니다.
 
@@ -43,7 +43,7 @@ GitHub Actions 검증 설정과 보고서 초안을 준비했습니다. GitHub �
 
 ## 함께 제공되는 3D 피팅룸
 
-의류 소상공인이 직접 등록한 상품을 내 체형의 3D 아바타에 조합하고, 판매자 실측으로 예상 차이를 확인한 뒤 각 상점으로 이동하는 가상 옷장입니다.
+의류 소상공인이 직접 문을 여는 가상 상점 거리입니다. 이용자는 상점을 골라 입장하고, 매장 옷걸이에서 상품을 골라 내 체형의 3D 아바타에 입힙니다. 입어본 코디는 다른 상점으로 이동해도 유지되며 판매자 실측과 예상 핏을 확인한 뒤 각 상점의 구매 페이지로 이동할 수 있습니다.
 
 ## 실행
 
@@ -64,7 +64,7 @@ AI 생성은 서버 실행 환경에 `OPENAI_API_KEY`를 비밀값으로 설정�
 
 ## 3D 피팅룸 기능
 
-- 소상공인 입점 흐름을 보여주는 시연 상품 8개와 판매자가 직접 게시한 상품. 상품 선택, 드래그/버튼 착용, 부위별 교체·벗기기, 사이즈 변경, 상점 구매 링크.
+- 세 개의 시연 매장으로 구성된 가상 상점 거리와 판매자가 직접 게시한 상점. 매장 입장, 매장별 상품 진열, 상점 간 코디 유지, 드래그/버튼 착용, 부위별 교체·벗기기, 사이즈 변경, 상점 구매 링크.
 - 판매자 상품의 가격·재고·실측·구매 링크 등록, 게시/게시 내리기, 같은 브라우저의 이용자 옷장 연동.
 - MakeHuman CC0 자산 기반 3D 아바타: 회전·확대·시점 전환, 키와 체형 변형.
 - 간편 설정·상세 치수·정면/측면 사진 추정. 사진은 브라우저 Worker에서 MediaPipe로 분석합니다.
@@ -87,7 +87,8 @@ AI 생성은 서버 실행 환경에 `OPENAI_API_KEY`를 비밀값으로 설정�
 - `app/seller/products/page.tsx`, `components/seller-products.tsx`: 상품·재고·사이즈 실측 등록과 브라우저 저장
 - `app/seller/ads/page.tsx`, `components/ad-studio.tsx`: 선택 상품 광고 입력·생성·편집·저장
 - `lib/seller/products.ts`: 판매자 상품 저장 계약과 게시 준비 판정
-- `app/wardrobe/page.tsx`, `components/wardrobe.tsx`: 이용자 3D 피팅룸과 상품 실측 비교
+- `app/wardrobe/page.tsx`, `components/wardrobe.tsx`: 가상 상점 거리, 매장 입장, 3D 피팅룸과 상품 실측 비교
+- `lib/wardrobe/stores.ts`: 게시 상품을 판매자 상점 단위로 구성하고 신규 판매자 상점을 우선 배치
 - `app/api/ads/generate/route.ts`: 서버 전용 OpenAI Responses API 호출과 실패 처리
 - `lib/ads/contracts.ts`: 요청·응답 검사, 모델 출력 JSON Schema, 프롬프트 정책
 - `lib/ads/contracts.test.ts`: 할인 예외, 출력 관점 중복, Responses API 텍스트 추출 검사
