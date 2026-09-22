@@ -10,6 +10,7 @@
 - [9월 16일 개인 업무일지 초안](docs/journal/2026-09-16.md)
 - [9월 21일 오류·개인정보 점검 일지](docs/journal/2026-09-21.md)
 - [9월 22일 가상 매장 진열 연동 일지](docs/journal/2026-09-22.md)
+- [개발 도구·AI 모델·Codex 스킬 정리](docs/TOOLS_AND_AI.md)
 - [프로젝트 보고서 초안](docs/report/REPORT_DRAFT.md)
 
 GitHub Actions 검증 설정과 보고서 초안을 준비했습니다. GitHub 제출 저장소 게시와 최종 보고서 PDF는 로그인 복구와 실제 모델 평가 후 완료합니다.
