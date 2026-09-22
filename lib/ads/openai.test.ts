@@ -26,6 +26,11 @@ test('provider rate limit becomes a safe application error',async()=>{
  await assert.rejects(()=>generateAdDrafts(request,'test-key',fetcher),error=>error instanceof AdGenerationError&&error.code==='rate_limited'&&error.status===429);
 });
 
+test('archived or unauthorized API projects get an actionable safe error',async()=>{
+ const fetcher=async()=>new Response(JSON.stringify({error:{message:'provider detail'}}),{status:401});
+ await assert.rejects(()=>generateAdDrafts(request,'test-key',fetcher),error=>error instanceof AdGenerationError&&error.code==='authentication_failed'&&error.status===503&&error.message.includes('활성 프로젝트'));
+});
+
 test('malformed provider JSON is reported as an invalid response',async()=>{
  const fetcher=async()=>new Response('not-json',{status:200,headers:{'Content-Type':'application/json'}});
  await assert.rejects(()=>generateAdDrafts(request,'test-key',fetcher),error=>error instanceof AdGenerationError&&error.code==='invalid_response');
