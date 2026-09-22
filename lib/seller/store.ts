@@ -46,6 +46,11 @@ export function sellerStoreLayout(profile:SellerStoreProfile,availableProductIds
  return Object.fromEntries(SELLER_STORE_ZONES.map(zone=>[zone,profile.placements.filter(item=>item.zone===zone&&available.has(item.productId)).map(item=>item.productId)])) as Record<SellerStoreZone,string[]>;
 }
 
+export function stepSellerStoreZone(current:SellerStoreZone,direction:-1|1):SellerStoreZone{
+ const index=SELLER_STORE_ZONES.indexOf(current);
+ return SELLER_STORE_ZONES[(index+direction+SELLER_STORE_ZONES.length)%SELLER_STORE_ZONES.length];
+}
+
 export function sellerStoreReadiness(profile:SellerStoreProfile,publishedProductIds:string[]){
  const published=new Set(publishedProductIds);
  const steps=[

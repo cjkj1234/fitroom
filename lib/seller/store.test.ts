@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createDefaultSellerStore,parseStoredSellerStore,placeSellerProduct,publishSellerStore,removeSellerProductPlacement,sellerStoreLayout,sellerStoreReadiness} from './store';
+import {createDefaultSellerStore,parseStoredSellerStore,placeSellerProduct,publishSellerStore,removeSellerProductPlacement,sellerStoreLayout,sellerStoreReadiness,stepSellerStoreZone} from './store';
 
 test('store profile safely ignores corrupt storage',()=>{
  assert.equal(parseStoredSellerStore('{bad'),null);
@@ -26,6 +26,14 @@ test('shopper layout preserves seller zones and omits unavailable products',()=>
   'right-wall':[],
   'feature-table':['p2'],
  });
+});
+
+test('store tour moves through every zone and loops at both ends',()=>{
+ assert.equal(stepSellerStoreZone('left-wall',1),'center-rack');
+ assert.equal(stepSellerStoreZone('center-rack',1),'right-wall');
+ assert.equal(stepSellerStoreZone('right-wall',1),'feature-table');
+ assert.equal(stepSellerStoreZone('feature-table',1),'left-wall');
+ assert.equal(stepSellerStoreZone('left-wall',-1),'feature-table');
 });
 
 test('store publication requires a published and placed product plus preview confirmation',()=>{
