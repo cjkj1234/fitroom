@@ -41,6 +41,11 @@ export function removeSellerProductPlacement(profile:SellerStoreProfile,productI
  return {...profile,placements:profile.placements.filter(item=>item.productId!==productId),status:'draft',publishedAt:null};
 }
 
+export function sellerStoreLayout(profile:SellerStoreProfile,availableProductIds:string[]):Record<SellerStoreZone,string[]>{
+ const available=new Set(availableProductIds);
+ return Object.fromEntries(SELLER_STORE_ZONES.map(zone=>[zone,profile.placements.filter(item=>item.zone===zone&&available.has(item.productId)).map(item=>item.productId)])) as Record<SellerStoreZone,string[]>;
+}
+
 export function sellerStoreReadiness(profile:SellerStoreProfile,publishedProductIds:string[]){
  const published=new Set(publishedProductIds);
  const steps=[
