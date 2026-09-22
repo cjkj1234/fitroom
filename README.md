@@ -72,6 +72,7 @@ AI 생성은 서버 실행 환경에 `OPENAI_API_KEY`를 비밀값으로 설정�
 - 판매자 가상 매장의 이름·소개·테마를 상점 거리 카드에 반영하고, 게시한 판매자 상품을 해당 매장 옷걸이에 표시.
 - 판매자가 지정한 왼쪽 벽면·중앙 행거·오른쪽 벽면·추천 테이블의 상품 배치를 이용자 매장 내부에 같은 위치로 표시하고, 이전·다음 동선 탐색과 진열 상품 바로 입어보기.
 - 상품 찜, 현재 착용 코디 저장, 판매 중인 상품으로 코디 다시 입기, 삭제와 새로고침 복원을 지원하는 이용자 보관함.
+- 찜한 상품과 저장 코디의 상점·종류·색상·실루엣을 기기 안에서 점수화하고, 추천 이유와 함께 상점 거리에서 관련 상품과 매장을 안내하는 개인화 추천.
 - 판매자 상품의 가격·재고·실측·구매 링크 등록, 게시/게시 내리기, 같은 브라우저의 이용자 옷장 연동.
 - MakeHuman CC0 자산 기반 3D 아바타: 회전·확대·시점 전환, 키와 체형 변형.
 - 간편 설정·상세 치수·정면/측면 사진 추정. 사진은 브라우저 Worker에서 MediaPipe로 분석합니다.
@@ -98,6 +99,7 @@ AI 생성은 서버 실행 환경에 `OPENAI_API_KEY`를 비밀값으로 설정�
 - `lib/seller/store.ts`: 가상 매장 저장 계약, 상품 진열 규칙과 5단계 게시 준비 판정
 - `app/wardrobe/page.tsx`, `components/wardrobe.tsx`: 가상 상점 거리, 매장 입장, 3D 피팅룸과 상품 실측 비교
 - `components/wardrobe-collection.tsx`, `lib/wardrobe/collection.ts`: 찜·코디 보관함 화면, 저장 계약과 복원 규칙
+- `lib/wardrobe/recommendations.ts`: 보관함의 취향 신호를 비교하는 로컬 추천 점수와 설명 생성
 - `lib/wardrobe/stores.ts`: 게시 상품을 판매자 상점 단위로 구성하고 신규 판매자 상점을 우선 배치
 - `app/api/ads/generate/route.ts`: 서버 전용 OpenAI Responses API 호출과 실패 처리
 - `lib/ads/contracts.ts`: 요청·응답 검사, 모델 출력 JSON Schema, 프롬프트 정책
