@@ -24,7 +24,7 @@ GitHub Actions 검증 설정과 보고서 초안을 준비했습니다. GitHub �
 - `/seller/ads`: 등록 상품을 불러오는 AI 광고 스튜디오
 - `/wardrobe`: 소상공인 상점 거리를 둘러보고 매장별 옷을 입어보는 3D 가상 패션 월드
 
-판매자 상품의 텍스트 정보는 `fitroom.seller.products.v1`, 가상 매장 설정은 `fitroom.seller.store.v1`, 이용자의 찜·코디 보관함은 `fitroom.wardrobe.collection.v1`, 시연용 관심 활동은 `fitroom.wardrobe.interest.v1` 키로 같은 브라우저에 임시 저장합니다. 선택한 상품은 광고 스튜디오에 자동으로 채워지고, 게시한 매장은 이용자 상점 거리 첫 번째 카드에 반영됩니다. 계정별 서버 저장은 아직 연결하지 않았습니다.
+판매자 상품의 텍스트 정보는 `fitroom.seller.products.v1`, 가상 매장 설정은 `fitroom.seller.store.v1`, 이용자의 찜·코디 보관함은 `fitroom.wardrobe.collection.v1`, 시연용 관심 활동은 `fitroom.wardrobe.interest.v1`, 사람이 채점한 광고 평가 기록은 `fitroom.ads.evaluations.v1` 키로 같은 브라우저에 임시 저장합니다. 선택한 상품은 광고 스튜디오에 자동으로 채워지고, 게시한 매장은 이용자 상점 거리 첫 번째 카드에 반영됩니다. 계정별 서버 저장은 아직 연결하지 않았습니다.
 
 ## 판매자 센터
 
@@ -46,6 +46,8 @@ GitHub Actions 검증 설정과 보고서 초안을 준비했습니다. GitHub �
 - 상품 이미지는 브라우저 미리보기와 PNG 생성에만 사용하며 AI 요청·서버 저장에서 제외.
 - 입력 누락, 할인율 누락, 연결 실패, 시간 초과, 결과 형식 오류 안내. 실패 시 기존 편집 결과 보존.
 - 요청 본문 크기 제한과 상품 입력을 남기지 않는 최소 서버 로그.
+- 생성 전 원본 입력·초안, 모델명, 프롬프트 버전, 응답 시간과 사실 보존·톤 반영·활용 가능성의 1–5점 사람 평가 저장.
+- 최대 50건의 평가를 브라우저에 보관하고 보고서 근거용 JSON으로 내보내기.
 
 ## 함께 제공되는 3D 피팅룸
 
@@ -107,6 +109,7 @@ AI 생성은 서버 실행 환경에 `OPENAI_API_KEY`를 비밀값으로 설정�
 - `lib/wardrobe/stores.ts`: 게시 상품을 판매자 상점 단위로 구성하고 신규 판매자 상점을 우선 배치
 - `app/api/ads/generate/route.ts`: 서버 전용 OpenAI Responses API 호출과 실패 처리
 - `lib/ads/contracts.ts`: 요청·응답 검사, 모델 출력 JSON Schema, 프롬프트 정책
+- `lib/ads/evaluations.ts`: 원본 생성 근거와 사람 평가의 브라우저 저장·JSON 내보내기 계약
 - `lib/ads/contracts.test.ts`: 할인 예외, 출력 관점 중복, Responses API 텍스트 추출 검사
 - `components/avatar-view.tsx`, `lib/wardrobe/geometry.ts`: 3D 모델 및 상품 실측 기반 참고 의상
 - `components/body-editor.tsx`, `lib/wardrobe/photo-worker.ts`: 체형 설정 및 기기 내 사진 추정
