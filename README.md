@@ -10,6 +10,7 @@
 - [9월 16일 개인 업무일지 초안](docs/journal/2026-09-16.md)
 - [9월 21일 오류·개인정보 점검 일지](docs/journal/2026-09-21.md)
 - [9월 22일 가상 매장 진열 연동 일지](docs/journal/2026-09-22.md)
+- [9월 23일 판매자 계정 동기화 일지](docs/journal/2026-09-23.md)
 - [개발 도구·AI 모델·Codex 스킬 정리](docs/TOOLS_AND_AI.md)
 - [프로젝트 보고서 초안](docs/report/REPORT_DRAFT.md)
 
@@ -24,7 +25,7 @@ GitHub Actions 검증 설정과 보고서 초안을 준비했습니다. GitHub �
 - `/seller/ads`: 등록 상품을 불러오는 AI 광고 스튜디오
 - `/wardrobe`: 소상공인 상점 거리를 둘러보고 매장별 옷을 입어보는 3D 가상 패션 월드
 
-판매자 상품의 텍스트 정보는 `fitroom.seller.products.v1`, 가상 매장 설정은 `fitroom.seller.store.v1`, 이용자의 찜·코디 보관함은 `fitroom.wardrobe.collection.v1`, 시연용 관심 활동은 `fitroom.wardrobe.interest.v1`, 사람이 채점한 광고 평가 기록은 `fitroom.ads.evaluations.v1` 키로 같은 브라우저에 임시 저장합니다. 선택한 상품은 광고 스튜디오에 자동으로 채워지고, 게시한 매장은 이용자 상점 거리 첫 번째 카드에 반영됩니다. 계정별 서버 저장은 아직 연결하지 않았습니다.
+판매자 상품의 텍스트 정보는 `fitroom.seller.products.v1`, 가상 매장 설정은 `fitroom.seller.store.v1` 키로 브라우저에 먼저 저장합니다. 판매자는 상단 `계정 동기화`에서 이 두 데이터를 ChatGPT 로그인 계정별 D1 서버 저장소에 올리거나 다른 기기로 불러올 수 있습니다. 이용자의 찜·코디 보관함은 `fitroom.wardrobe.collection.v1`, 시연용 관심 활동은 `fitroom.wardrobe.interest.v1`, 사람이 채점한 광고 평가 기록은 `fitroom.ads.evaluations.v1` 키로 현재 브라우저에만 저장합니다.
 
 ## 판매자 센터
 
@@ -32,6 +33,7 @@ GitHub Actions 검증 설정과 보고서 초안을 준비했습니다. GitHub �
 - 상점명, 상품명, 카테고리, 색상, 특징, 소재, 판매가, 재고 입력.
 - 상의·하의·모자에 맞는 사이즈별 실측표 입력과 게시 준비 판정.
 - 상품 초안 수정·삭제와 선택 상품의 AI 광고 제작 연결.
+- 상품 텍스트와 가상 매장 설정을 로그인 계정별 서버에 저장하고 다른 기기에서 불러오는 D1 동기화.
 - 세 가지 테마와 매장 소개를 설정하고 게시 상품을 네 개 진열 구역에 드래그 또는 버튼으로 배치하는 가상 매장 제작기.
 - 매장 정보·테마·상품 게시·상품 배치·미리보기 확인의 5단계 준비도를 거쳐 이용자 상점 거리에 게시하거나 게시 내리기.
 - 상품 이미지는 현재 세션의 미리보기에만 사용하며 브라우저 저장에서도 제외.
@@ -70,6 +72,14 @@ AI 생성은 서버 실행 환경에 `OPENAI_API_KEY`를 비밀값으로 설정�
 
 실제 모델 평가 절차는 [광고 평가 안내](docs/evaluations/README.md)에 있습니다. `--dry-run`은 키 없이 정상·오류 입력 규격만 검사하고, 실제 평가는 키가 연결된 실행 환경에서 응답 시간·원문·자동 의심 표현·사람 평가란을 함께 저장합니다.
 
+로컬에서 판매자 계정 동기화까지 확인하려면 한 번 빌드한 뒤 D1 마이그레이션을 적용합니다.
+
+```sh
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_small_gunslinger.sql
+```
+
+이 명령은 로컬 미리보기 데이터베이스만 변경합니다. Sites 배포에서는 같은 마이그레이션을 배포 과정에서 적용합니다.
+
 ## 3D 피팅룸 기능
 
 - 세 개의 시연 매장으로 구성된 가상 상점 거리와 판매자가 직접 게시한 상점. 실제 매장 입구 형태의 상점 카드, 문이 열리는 입장 전환, 매장별 카테고리 옷걸이, 상점 간 코디 유지, 드래그/버튼 착용, 부위별 교체·벗기기, 사이즈 변경, 상점 구매 링크.
@@ -102,6 +112,8 @@ AI 생성은 서버 실행 환경에 `OPENAI_API_KEY`를 비밀값으로 설정�
 - `app/seller/ads/page.tsx`, `components/ad-studio.tsx`: 선택 상품 광고 입력·생성·편집·저장
 - `lib/seller/products.ts`: 판매자 상품 저장 계약과 게시 준비 판정
 - `lib/seller/store.ts`: 가상 매장 저장 계약, 상품 진열 규칙과 5단계 게시 준비 판정
+- `components/seller-cloud-sync.tsx`, `app/api/seller/workspace/route.ts`: 판매자 계정 동기화 화면과 인증된 D1 저장 API
+- `db/schema.ts`, `drizzle/0000_small_gunslinger.sql`: 계정별 판매자 작업공간 테이블과 배포 마이그레이션
 - `app/wardrobe/page.tsx`, `components/wardrobe.tsx`: 가상 상점 거리, 매장 입장, 3D 피팅룸과 상품 실측 비교
 - `components/wardrobe-collection.tsx`, `lib/wardrobe/collection.ts`: 찜·코디 보관함 화면, 저장 계약과 복원 규칙
 - `lib/wardrobe/recommendations.ts`: 보관함의 취향 신호를 비교하는 로컬 추천 점수와 설명 생성

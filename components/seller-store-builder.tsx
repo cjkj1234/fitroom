@@ -47,6 +47,6 @@ export default function SellerStoreBuilder(){
   </section>
 
   <section className="store-publish-bar"><div className="publish-progress"><div><strong>게시 준비</strong><span>{readiness.complete} / {readiness.total} 완료</span></div><div className="publish-track"><span style={{width:`${readiness.percent}%`}}/></div><div className="publish-checklist">{readiness.steps.map(step=><span key={step.id} className={step.complete?'complete':''}>{step.complete?<Check/>:<i/>}{step.label}</span>)}</div></div><div className="publish-actions"><button type="button" onClick={save}><Save/>임시 저장</button><button type="button" className={profile.status==='published'?'unpublish':'publish'} onClick={togglePublication}>{profile.status==='published'?'게시 내리기':'가상 매장 게시하기'}</button></div></section>
-  {error&&<div className="seller-form-error store-builder-error" role="alert">{error}</div>}<footer className="seller-footer"><span>FITROOM SELLER · 가상 매장 편집기</span><span>매장 설정과 상품 배치는 같은 브라우저에 저장됩니다.</span></footer>{notice&&<div className="toast" role="status"><Check/>{notice}</div>}
+  {error&&<div className="seller-form-error store-builder-error" role="alert">{error}</div>}<footer className="seller-footer"><span>FITROOM SELLER · 가상 매장 편집기</span><span>매장 설정과 상품 배치는 계정 동기화로 다른 기기에서도 이어갈 수 있습니다.</span></footer>{notice&&<div className="toast" role="status"><Check/>{notice}</div>}
  </main>;
 }
