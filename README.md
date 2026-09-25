@@ -11,6 +11,7 @@
 - [9월 21일 오류·개인정보 점검 일지](docs/journal/2026-09-21.md)
 - [9월 22일 가상 매장 진열 연동 일지](docs/journal/2026-09-22.md)
 - [9월 23일 판매자 계정 동기화 일지](docs/journal/2026-09-23.md)
+- [9월 25일 공개 입점 카탈로그 일지](docs/journal/2026-09-25.md)
 - [개발 도구·AI 모델·Codex 스킬 정리](docs/TOOLS_AND_AI.md)
 - [프로젝트 보고서 초안](docs/report/REPORT_DRAFT.md)
 
@@ -25,7 +26,7 @@ GitHub Actions 검증 설정과 보고서 초안을 준비했습니다. GitHub �
 - `/seller/ads`: 등록 상품을 불러오는 AI 광고 스튜디오
 - `/wardrobe`: 소상공인 상점 거리를 둘러보고 매장별 옷을 입어보는 3D 가상 패션 월드
 
-판매자 상품의 텍스트 정보는 `fitroom.seller.products.v1`, 가상 매장 설정은 `fitroom.seller.store.v1` 키로 브라우저에 먼저 저장합니다. 판매자는 상단 `계정 동기화`에서 이 두 데이터를 ChatGPT 로그인 계정별 D1 서버 저장소에 올리거나 다른 기기로 불러올 수 있습니다. 이용자의 찜·코디 보관함은 `fitroom.wardrobe.collection.v1`, 시연용 관심 활동은 `fitroom.wardrobe.interest.v1`, 사람이 채점한 광고 평가 기록은 `fitroom.ads.evaluations.v1` 키로 현재 브라우저에만 저장합니다.
+판매자 상품의 텍스트 정보는 `fitroom.seller.products.v1`, 가상 매장 설정은 `fitroom.seller.store.v1` 키로 브라우저에 먼저 저장합니다. 판매자는 상단 `계정 동기화`에서 이 두 데이터를 ChatGPT 로그인 계정별 D1 서버 저장소에 올리거나 다른 기기로 불러올 수 있습니다. 동기화한 작업 공간 중 게시 검증을 통과한 매장과 상품만 공개 카탈로그 API를 통해 이용자 상점 거리에 표시합니다. 이용자의 찜·코디 보관함은 `fitroom.wardrobe.collection.v1`, 시연용 관심 활동은 `fitroom.wardrobe.interest.v1`, 사람이 채점한 광고 평가 기록은 `fitroom.ads.evaluations.v1` 키로 현재 브라우저에만 저장합니다.
 
 ## 판매자 센터
 
@@ -34,6 +35,7 @@ GitHub Actions 검증 설정과 보고서 초안을 준비했습니다. GitHub �
 - 상의·하의·모자에 맞는 사이즈별 실측표 입력과 게시 준비 판정.
 - 상품 초안 수정·삭제와 선택 상품의 AI 광고 제작 연결.
 - 상품 텍스트와 가상 매장 설정을 로그인 계정별 서버에 저장하고 다른 기기에서 불러오는 D1 동기화.
+- 서버에 동기화된 작업 공간에서 게시 완료 상품·매장만 이용자에게 공개하는 입점 카탈로그. 계정 ID와 초안은 공개 응답에서 제외.
 - 세 가지 테마와 매장 소개를 설정하고 게시 상품을 네 개 진열 구역에 드래그 또는 버튼으로 배치하는 가상 매장 제작기.
 - 매장 정보·테마·상품 게시·상품 배치·미리보기 확인의 5단계 준비도를 거쳐 이용자 상점 거리에 게시하거나 게시 내리기.
 - 상품 이미지는 현재 세션의 미리보기에만 사용하며 브라우저 저장에서도 제외.
@@ -89,6 +91,7 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 - 찜한 상품과 저장 코디의 상점·종류·색상·실루엣을 기기 안에서 점수화하고, 추천 이유와 함께 상점 거리에서 관련 상품과 매장을 안내하는 개인화 추천.
 - 판매자 상품의 찜 추가·입어보기·추천 열기·코디 저장 동작을 최대 200건까지 기기 안에 기록하고 판매자 관심 대시보드에 연결.
 - 판매자 상품의 가격·재고·실측·구매 링크 등록, 게시/게시 내리기, 같은 브라우저의 이용자 옷장 연동.
+- 계정 동기화한 게시 매장을 다른 브라우저·기기의 이용자 상점 거리에서도 조회하고 판매자 진열 배치로 입장.
 - MakeHuman CC0 자산 기반 3D 아바타: 회전·확대·시점 전환, 키와 체형 변형.
 - 간편 설정·상세 치수·정면/측면 사진 추정. 사진은 브라우저 Worker에서 MediaPipe로 분석합니다.
 - 원본 사진은 메모리에서만 사용하며 서버 업로드 및 저장이 없습니다. 적용한 치수만 `fitroom.body.v1` 키로 이 브라우저에 저장합니다.
@@ -113,6 +116,7 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 - `lib/seller/products.ts`: 판매자 상품 저장 계약과 게시 준비 판정
 - `lib/seller/store.ts`: 가상 매장 저장 계약, 상품 진열 규칙과 5단계 게시 준비 판정
 - `components/seller-cloud-sync.tsx`, `app/api/seller/workspace/route.ts`: 판매자 계정 동기화 화면과 인증된 D1 저장 API
+- `app/api/catalog/stores/route.ts`, `lib/wardrobe/public-catalog.ts`: 게시 검증을 다시 수행하는 공개 입점 카탈로그 API와 로컬·서버 병합 규칙
 - `db/schema.ts`, `drizzle/0000_small_gunslinger.sql`: 계정별 판매자 작업공간 테이블과 배포 마이그레이션
 - `app/wardrobe/page.tsx`, `components/wardrobe.tsx`: 가상 상점 거리, 매장 입장, 3D 피팅룸과 상품 실측 비교
 - `components/wardrobe-collection.tsx`, `lib/wardrobe/collection.ts`: 찜·코디 보관함 화면, 저장 계약과 복원 규칙

@@ -6,6 +6,8 @@ Production build and TypeScript checks passed on 2026-09-15. The local preview r
 
 Automated tests cover the small-shop demo catalog, seller publishing and migration, flat-width/circumference conversion, negative ease, missing dimensions, elastic waist and adjustable cap deferral, slot replacement/removal, invalid sizes, body ranges, presets, storage normalization, finite garment geometry, fixed garment dimensions across body girths, ellipse math, photo postprocessing, manual input precedence, bad photo evidence, and WebMCP input validation.
 
+On 2026-09-25, 68 automated tests, TypeScript checking, and a production build passed. A local D1 account workspace was saved through the authenticated seller API. The anonymous catalog endpoint returned only its ready, published store and product, without an account identifier. The shopper street then showed the server store, entered its seller-curated floor, exposed the placed product, price, stock, measurements and purchase link, and retained no horizontal overflow at a 390px viewport.
+
 The MakeHuman GLB was checked for valid indices, buffers, finite coordinates and named morph targets. Neutral circumference sections were calibrated in asset generation. Garment thumbnail images are z-buffered renders of the same geometry used by the browser.
 
 ## Accuracy limits
