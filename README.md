@@ -14,8 +14,10 @@
 - [9월 25일 공개 입점 카탈로그 일지](docs/journal/2026-09-25.md)
 - [개발 도구·AI 모델·Codex 스킬 정리](docs/TOOLS_AND_AI.md)
 - [프로젝트 보고서 초안](docs/report/REPORT_DRAFT.md)
+- [프로젝트 보고서 PDF](output/pdf/FITROOM_PROJECT_REPORT.pdf)
+- [프로젝트 보고서 편집본](docs/report/FITROOM_PROJECT_REPORT.docx)
 
-GitHub Actions 검증 설정과 보고서 초안을 준비했습니다. GitHub 제출 저장소 게시와 최종 보고서 PDF는 로그인 복구와 실제 모델 평가 후 완료합니다.
+GitHub Actions 검증 설정과 9쪽 보고서 PDF·편집본을 준비했습니다. 현재 보고서는 구현과 자동 검증 결과를 담은 제출 전 버전이며, 실제 모델 평가 수치는 활성 API 프로젝트 연결 후 보완합니다. GitHub 제출 저장소 게시는 로그인 복구 후 완료합니다.
 
 ## 페이지 구성
 
