@@ -8,6 +8,12 @@ Automated tests cover the small-shop demo catalog, seller publishing and migrati
 
 On 2026-09-25, 68 automated tests, TypeScript checking, and a production build passed. A local D1 account workspace was saved through the authenticated seller API. The anonymous catalog endpoint returned only its ready, published store and product, without an account identifier. The shopper street then showed the server store, entered its seller-curated floor, exposed the placed product, price, stock, measurements and purchase link, and retained no horizontal overflow at a 390px viewport.
 
+On 2026-09-29, a clean reproduction was run from the git-tracked files in a folder outside iCloud (Node 22.23): `npm ci` (36 s), 96 automated tests, the TypeScript check, the ad-evaluation dry run (4 real inputs, 4/4 invalid inputs rejected) and a production build (about 20 s) all passed. The project folder itself lives in an iCloud-synced Documents directory where the system evicts files to free disk space; reading evicted large files (a 5 MB git pack, a 3 MB GLB) stalls, and the dev server, build and bulk copies hang there. All runs and browser checks therefore used a copy outside iCloud that was kept in sync with the working folder. The real-model ad evaluation of the same day is in `docs/evaluations/runs/`; its quality scores are an AI-assisted review, not the final human rating.
+
+Mannequin fit (2026-09-29): `lib/wardrobe/mannequin-fit.test.ts` loads the mannequin GLB, casts a ray from each mannequin vertex in the region a garment must cover, and fails when the exposed share exceeds a per-slot limit (tops 5%, bottoms 3%, hats 0.5%). Measured exposure: tops 2.5–3.2%, bottoms 0.25–1.5%, hats 0%; the shirt and carpenter-shorts samples built from real product photos were 2.5% and 0%. This checks that the body does not poke through the procedural garments on this one mannequin; it does not validate real-world garment shape or fit accuracy.
+
+Not validated: touch behaviour and performance on a real phone, ad generation on the deployed site (no server secret is connected there), the final human rating of generated ad copy, and any measure of how closely a 3D garment matches its product photo.
+
 The MakeHuman GLB was checked for valid indices, buffers, finite coordinates and named morph targets. Neutral circumference sections were calibrated in asset generation. Garment thumbnail images are z-buffered renders of the same geometry used by the browser.
 
 ## Accuracy limits

@@ -75,7 +75,7 @@ npm run build
 npm run evaluate:ads -- --dry-run
 ```
 
-Node.js 22.13 이상. Sites의 portable 실행 프로필과 Vinext/React/TypeScript, Three.js를 사용합니다.
+Node.js 22.13 이상. Sites의 portable 실행 프로필과 Vinext/React/TypeScript, Three.js를 사용합니다. 2026-09-29에 Node 22.23에서 저장소 파일만으로 `npm ci` → `npm test`(96개) → `npm run typecheck` → `npm run build`가 통과함을 확인했습니다. macOS의 iCloud 동기화 폴더(Documents·Desktop) 안에서는 시스템이 파일을 비워 개발 서버·빌드가 멈출 수 있으니, 저장소를 iCloud 밖에 받아 실행하세요.
 
 AI 생성은 서버 실행 환경에 `OPENAI_API_KEY`를 비밀값으로 설정해야 동작합니다. 키가 없으면 화면에서 연결 설정 필요 상태를 명확히 표시하며 예시 문구를 실제 생성 결과처럼 대신 보여주지 않습니다.
 
