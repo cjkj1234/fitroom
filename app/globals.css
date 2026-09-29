@@ -198,3 +198,12 @@
  .seller-header nav a{min-height:44px;display:flex;align-items:center;justify-content:center}
  .seller-sync-trigger,.seller-wardrobe-link{min-width:44px;height:44px}
 }
+
+/* AI 광고 스튜디오: 등록 상품 선택과 참고 이미지 안내 */
+.ad-source{display:flex;flex-direction:column;gap:7px;margin-bottom:16px;padding:12px 13px;border:1px solid #dfe1e5;border-radius:8px;background:#f7f8fa}
+.ad-source label{font-size:12px;font-weight:700;color:#4c5057}
+.ad-source select{width:100%;height:40px;border:1px solid #dfe1e5;border-radius:6px;background:#fcfcfd;padding:0 10px;font-size:13px;color:var(--ad-ink)}
+.ad-source p{margin:0;font-size:11px;line-height:1.55;color:#747881}
+.ad-source a{color:var(--ad-blue);font-weight:700;text-decoration:none}
+.reference-note{font-size:11px;color:#8a8d94;text-align:center;margin:6px 0 0;line-height:1.55}
+@media(max-width:780px){.ad-source select{height:44px}}

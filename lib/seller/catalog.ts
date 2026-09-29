@@ -1,7 +1,7 @@
 import {publishedSellerProducts,type SellerProduct,type SellerSize} from './products';
 import type {Product,SizeMeasurements} from '../wardrobe/types';
 
-const CATEGORY_IMAGES={top:'/catalog/3777371.png',bottom:'/catalog/3504218.png',hat:'/catalog/5067714.png'} as const;
+export const SELLER_CATEGORY_IMAGES={top:'/catalog/3777371.png',bottom:'/catalog/3504218.png',hat:'/catalog/5067714.png'} as const;
 const COLOR_MAP:Record<string,string>={
  '검정':'#24272b','검정색':'#24272b','블랙':'#24272b','black':'#24272b',
  '흰색':'#f1efea','화이트':'#f1efea','white':'#f1efea',
@@ -48,7 +48,7 @@ export function sellerProductToWardrobeProduct(product:SellerProduct):Product{
   silhouette:silhouette(product),elasticWaist:product.category==='bottom'&&(descriptor.includes('밴딩')||descriptor.includes('고무')),
   adjustableHat:product.category==='hat'&&(descriptor.includes('조절')||descriptor.includes('스트랩')),
   note:'판매자가 입력한 색상·실측을 기본 의상 형태에 적용한 참고용 3D 표현입니다. 실제 원단과 세부 디자인은 아직 반영되지 않습니다.',
-  measurementBasis:'판매자가 직접 입력한 상품 실측. 누락된 값은 비교하지 않습니다.',image:CATEGORY_IMAGES[product.category],
+  measurementBasis:'판매자가 직접 입력한 상품 실측. 누락된 값은 비교하지 않습니다.',image:SELLER_CATEGORY_IMAGES[product.category],
   priceKrw:product.priceKrw??undefined,stock:product.stock??undefined,
  };
 }

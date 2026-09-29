@@ -1,4 +1,15 @@
+import type {SellerProduct} from '../seller/products';
+
 export type ExportableDraft={headline:string;body:string;cta:string;hashtags:string};
+
+// 등록 상품의 사실 정보만 광고 입력으로 옮긴다. 할인율은 상품마다 달라 항상 비운다.
+export function sellerProductToAdFields(product:SellerProduct){
+ return {
+  storeName:product.storeName,productName:product.name,category:product.category,color:product.color,
+  features:product.features.join(', '),material:product.material??'',
+  price:product.priceKrw===null?'':String(product.priceKrw),discount:'',
+ };
+}
 
 export function parseOptionalNumberInput(value:string){
  const trimmed=value.trim();
