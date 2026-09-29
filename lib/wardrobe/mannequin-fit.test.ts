@@ -52,9 +52,24 @@ function exposedShare(product:Product){
  return {tested,exposed,share:exposed/Math.max(1,tested)};
 }
 
+test('앞면 텍스처를 입힌 셔츠는 앞면 패치에 UV가 있고 절차형 앞면 세부는 생략한다',()=>{
+ const shirt=sellerProductToWardrobeProduct(SELLER_SAMPLES[0]),size=shirt.sizes[0];
+ const plain=makeGarment(shirt,size,DEFAULT_BODY),textured=makeGarment(shirt,size,DEFAULT_BODY,false,{frontTexture:new THREE.Texture()});
+ const front=textured.getObjectByName('front-texture');
+ assert.ok(front instanceof THREE.Mesh);
+ const uv=front.geometry.getAttribute('uv'),position=front.geometry.getAttribute('position');
+ assert.equal(uv.count,position.count);
+ assert.ok(Array.from(position.array).every(Number.isFinite));
+ assert.ok(Array.from(uv.array as ArrayLike<number>).every(value=>value>=0&&value<=1),'UV는 0–1 범위');
+ assert.equal(plain.getObjectByName('front-texture'),undefined);
+ const meshes=(group:THREE.Group)=>{let count=0;group.traverse(o=>{if(o instanceof THREE.Mesh)count++;});return count;};
+ assert.ok(meshes(textured)<meshes(plain),'사진에 있는 카라·단추·주머니는 다시 그리지 않는다');
+ disposeGroup(plain);disposeGroup(textured);
+});
+
 // 허용 비율은 현재 형태에서 측정한 값에 여유를 둔 상한이다. 옷 형태를 바꿔 이 값을 넘기면 몸이 옷을 뚫고 나오는지 화면에서 확인한다.
 const LIMITS:Record<string,number>={hat:.005,top:.05,bottom:.03};
-for(const product of [...PRODUCTS,...SELLER_SAMPLES.map(sellerProductToWardrobeProduct)]){
+for(const product of [...PRODUCTS,...SELLER_SAMPLES.map(sample=>sellerProductToWardrobeProduct(sample))]){
  test(`${product.name}: 마네킹 몸이 옷 밖으로 뚫고 나오지 않는다`,t=>{
   const result=exposedShare(product);
   t.diagnostic(`노출 ${(result.share*100).toFixed(2)}% (${result.exposed}/${result.tested})`);

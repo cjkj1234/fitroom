@@ -47,11 +47,11 @@ function silhouette(product:SellerProduct):Product['silhouette']{
  return 'tee';
 }
 
-export function sellerProductToWardrobeProduct(product:SellerProduct):Product{
+export function sellerProductToWardrobeProduct(product:SellerProduct,frontTexture?:string):Product{
  const descriptor=[product.name,...product.features,product.material??''].join(' ').toLowerCase();
  return {
   id:`seller:${product.id}`,sellerProductId:product.id,source:'seller',slot:product.category,
-  brand:product.storeName,name:product.name,color:product.colorHex??sellerColorToHex(product.color),colorName:product.color,style:sellerStyle(product),
+  brand:product.storeName,name:product.name,color:product.colorHex??sellerColorToHex(product.color),colorName:product.color,style:sellerStyle(product),frontTexture:product.category==='top'?frontTexture:undefined,
   url:product.purchaseUrl??'',checkedAt:product.updatedAt.slice(0,10),sizes:product.sizes.map(compactSize),defaultSize:product.sizes[0].label,
   silhouette:silhouette(product),elasticWaist:product.category==='bottom'&&(descriptor.includes('밴딩')||descriptor.includes('고무')),
   adjustableHat:product.category==='hat'&&(descriptor.includes('조절')||descriptor.includes('스트랩')),
@@ -61,6 +61,6 @@ export function sellerProductToWardrobeProduct(product:SellerProduct):Product{
  };
 }
 
-export function publishedSellerCatalog(products:SellerProduct[]){
- return publishedSellerProducts(products).map(sellerProductToWardrobeProduct);
+export function publishedSellerCatalog(products:SellerProduct[],textures:Record<string,string>={}){
+ return publishedSellerProducts(products).map(product=>sellerProductToWardrobeProduct(product,textures[product.id]));
 }

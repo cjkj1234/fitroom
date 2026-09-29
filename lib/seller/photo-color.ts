@@ -5,15 +5,20 @@ const toHex=(color:Rgb)=>`#${color.map(value=>Math.round(Math.max(0,Math.min(255
 const distance=(a:Rgb,b:Rgb)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
 const median=(values:number[])=>{const sorted=[...values].sort((a,b)=>a-b);return sorted[Math.floor(sorted.length/2)]??0;};
 
+// 배경은 사진 가장자리 색의 중앙값으로 잡는다(흰색·회색 배경 모두 처리).
+export function estimateBackground(pixels:ArrayLike<number>,width:number,height:number):Rgb{
+ const at=(x:number,y:number):Rgb=>{const i=(y*width+x)*4;return [pixels[i],pixels[i+1],pixels[i+2]];};
+ const border:Rgb[]=[];const edge=Math.max(1,Math.floor(Math.min(width,height)*.04));
+ for(let x=0;x<width;x+=Math.max(1,Math.floor(width/40)))for(let e=0;e<edge;e++){border.push(at(x,e));border.push(at(x,height-1-e));}
+ for(let y=0;y<height;y+=Math.max(1,Math.floor(height/40)))for(let e=0;e<edge;e++){border.push(at(e,y));border.push(at(width-1-e,y));}
+ return [median(border.map(c=>c[0])),median(border.map(c=>c[1])),median(border.map(c=>c[2]))];
+}
+
 // pixels는 RGBA 순서(ImageData.data와 같은 형식)이다. 반환값은 큰 덩어리부터 최대 count개의 #rrggbb.
 export function dominantColors(pixels:ArrayLike<number>,width:number,height:number,count=3):string[]{
  if(width<2||height<2||pixels.length<width*height*4)return [];
  const at=(x:number,y:number):Rgb=>{const i=(y*width+x)*4;return [pixels[i],pixels[i+1],pixels[i+2]];};
- // 배경은 사진 가장자리 색의 중앙값으로 잡는다(흰색·회색 배경 모두 처리).
- const border:Rgb[]=[];const edge=Math.max(1,Math.floor(Math.min(width,height)*.04));
- for(let x=0;x<width;x+=Math.max(1,Math.floor(width/40)))for(let e=0;e<edge;e++){border.push(at(x,e));border.push(at(x,height-1-e));}
- for(let y=0;y<height;y+=Math.max(1,Math.floor(height/40)))for(let e=0;e<edge;e++){border.push(at(e,y));border.push(at(width-1-e,y));}
- const background:Rgb=[median(border.map(c=>c[0])),median(border.map(c=>c[1])),median(border.map(c=>c[2]))];
+ const background=estimateBackground(pixels,width,height);
  // 가운데 영역만 표본으로 삼고, 배경과 비슷하거나 투명한 픽셀은 뺀다.
  const samples:Rgb[]=[];const step=Math.max(1,Math.floor(Math.sqrt((width*height)/30000)));
  for(let y=Math.floor(height*.12);y<Math.floor(height*.9);y+=step)for(let x=Math.floor(width*.15);x<Math.floor(width*.85);x+=step){

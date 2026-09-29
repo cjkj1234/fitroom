@@ -13,6 +13,8 @@ export type Product = {
   silhouette: 'tee' | 'vneck' | 'stripe' | 'wide' | 'straight' | 'cap';
   // 실루엣과 별개로 그리는 세부 디자인. shirt는 오픈카라 셔츠(단추 여밈·가슴 주머니), carpenter는 카펜터/카고 주머니가 있는 바지.
   style?: 'shirt' | 'carpenter';
+  // 판매자가 평면 촬영한 상의 사진에서 만든 앞면 텍스처(JPEG 데이터 주소). 이 탭 세션에서만 존재하며 서버·계정에는 없다.
+  frontTexture?: string;
   elasticWaist?: boolean; adjustableHat?: boolean; note?: string;
   measurementBasis?: string; image: string; source: 'demo' | 'seller';
   sellerProductId?: string; priceKrw?: number; stock?: number;

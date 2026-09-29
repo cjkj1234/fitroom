@@ -66,11 +66,11 @@ function surfaceZ(rings:Ring[],x:number,y:number,side:1|-1,offset=0){
  return r.z+side*(r.rz*Math.pow(inside,1/r.n)+offset);
 }
 // (u,v)∈[0,1]² 격자를 point로 3D에 옮긴 얇은 조각. 주머니·플래킷처럼 표면을 따라가는 덧댐에 쓴다.
-function patch(point:(u:number,v:number)=>THREE.Vector3,nu:number,nv:number,material:THREE.Material){
- const positions:number[]=[],indices:number[]=[];
- for(let i=0;i<=nu;i++)for(let j=0;j<=nv;j++){const p=point(i/nu,j/nv);positions.push(p.x,p.y,p.z);}
+function patch(point:(u:number,v:number)=>THREE.Vector3,nu:number,nv:number,material:THREE.Material,uv?:(u:number,v:number)=>[number,number]){
+ const positions:number[]=[],indices:number[]=[],uvs:number[]=[];
+ for(let i=0;i<=nu;i++)for(let j=0;j<=nv;j++){const p=point(i/nu,j/nv);positions.push(p.x,p.y,p.z);if(uv)uvs.push(...uv(i/nu,j/nv));}
  for(let i=0;i<nu;i++)for(let j=0;j<nv;j++){const a=i*(nv+1)+j,b=a+nv+1;indices.push(a,b,a+1,b,b+1,a+1);}
- const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.setIndex(indices);geometry.computeVertexNormals();
+ const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));if(uv)geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));geometry.setIndex(indices);geometry.computeVertexNormals();
  const mesh=new THREE.Mesh(geometry,material);mesh.castShadow=true;mesh.receiveShadow=true;return mesh;
 }
 // 꼭짓점 목록과 삼각형 색인으로 만든 얇은 조각(카라 같은 비정형 모양).
@@ -112,7 +112,9 @@ function brimMeshes(rx:number,rz:number,base:number,zOffset:number,material:THRE
  return [brim,rim];
 }
 
-export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfile,thumbnail=false):THREE.Group {
+// options.frontTexture: 평면 촬영한 상의 사진에서 만든 앞면 텍스처. 있으면 상의 앞면에 사진 무늬를 입히고 절차형 앞면 세부(카라·단추·주머니)는 생략한다.
+export type GarmentOptions={frontTexture?:THREE.Texture};
+export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfile,thumbnail=false,options:GarmentOptions={}):THREE.Group {
  const group=new THREE.Group();group.name=product.id;
  const mat=fabricMaterial(product.color),trim=trimMaterial(product.color);
  const m=body.measurements,H=m.height/100,shoulderY=H*SHOULDER_HEIGHT_RATIO,waistY=m.legLength/100;
@@ -142,11 +144,12 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
    group.add(ringMesh(rings,mat));
    // 밑단 띠와 카라(목 둘레 띠). 카라는 본체 목선과 같은 높이 보정을 그대로 따른다.
    const hem=bandRings(rings,bottom,bottom+.024,.0018,y=>({z:torsoZ(y),n:teeN(y)}));group.add(ringMesh(hem,trim));
+   const textured=Boolean(options.frontTexture);
    if(!shirt)group.add(ringMesh(rings.filter(r=>r.y>=top-.031).map(r=>({...r,rx:r.rx+.0016,rz:r.rz+.0016})),trim));
    else{
-     // 오픈카라: 앞 V 가장자리를 따라 넓게 젖혀진 카라 두 장. 바깥 끝으로 갈수록 살짝 들뜬다.
+     // 오픈카라: 앞 V 가장자리를 따라 넓게 젖혀진 카라 두 장. 바깥 끝으로 갈수록 살짝 들뜬다. 사진 텍스처를 입히면 사진 속 카라를 쓴다.
      const lift=(x:number,y:number,offset:number)=>new THREE.Vector3(x,y,surfaceZ(rings,x,y,1,offset));
-     for(const s of [-1,1]){
+     if(!textured)for(const s of [-1,1]){
        const corners=[[.006,top-.105,.004],[.052,top+.002,.006],[.114,top-.02,.011],[.09,top-.114,.015]].map(([x,y,o])=>lift(s*x,y,o));
        group.add(flap(corners,s>0?[0,1,3,1,2,3]:[0,3,1,1,3,2],trim));
      }
@@ -165,7 +168,14 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
      // 마네킹 위팔은 어깨에서 약 23° 벌어져 내려오다 팔꿈치 아래에서 더 벌어지므로, 소매는 위팔 각도(약 0.4rad)에 맞춘다.
      sleeve.rotation.z=side*.4;sleeve.position.set(side*sw*.9,shoulderY-.01,torsoZ(shoulderY));group.add(sleeve);
    }
-   if(shirt){
+   if(options.frontTexture){
+     // 평면 사진 앞면: 가슴 폭(가장 넓은 몸통 반폭)을 기준으로 사진을 가로로 펴고, 좁아지는 목·어깨 쪽은 옆을 잘라 낸다(늘리지 않는다).
+     const texture=options.frontTexture,frontMaterial=new THREE.MeshStandardMaterial({map:texture,roughness:.9,side:THREE.DoubleSide});
+     const yTop=top-.004,yBottom=bottom+.006,halfWidth=Math.max(...rings.filter(r=>r.y>bottom+.05&&r.y<shoulderY-.05).map(r=>r.rx))*.99;
+     const front=patch((u,v)=>{const y=yTop+(yBottom-yTop)*v,r=radiiAt(rings,y),x=Math.max(-r.rx*.99,Math.min(r.rx*.99,(u-.5)*2*halfWidth));return new THREE.Vector3(x,y,surfaceZ(rings,x,y,1,.0018));},24,32,frontMaterial,(u,v)=>[u,1-v]);
+     front.name='front-texture';group.add(front);
+   }
+   if(shirt&&!textured){
      // 앞 단추 여밈선(플래킷)과 단추, 착용자 왼쪽(+x) 가슴 주머니.
      const placketTop=top-.105,placketBottom=bottom+.02,buttonMat=new THREE.MeshStandardMaterial({color:'#e9e4d6',roughness:.45});
      group.add(patch((u,v)=>{const x=(u-.5)*.042,y=placketTop+(placketBottom-placketTop)*v;return new THREE.Vector3(x,y,surfaceZ(rings,x,y,1,.0025));},1,14,trim));

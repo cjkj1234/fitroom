@@ -7,6 +7,7 @@ import AvatarView from '@/components/avatar-view';
 import BodyEditor from '@/components/body-editor';
 import WardrobeCollection from '@/components/wardrobe-collection';
 import {publishedSellerCatalog} from '@/lib/seller/catalog';
+import {readSessionTextures} from '@/lib/seller/textures';
 import {parseStoredSellerProducts,SELLER_PRODUCTS_STORAGE_KEY} from '@/lib/seller/products';
 import {parseStoredSellerStore,sellerStoreLayout,SELLER_STORE_MUSIC_LABELS,SELLER_STORE_STORAGE_KEY,SELLER_STORE_THEME_ACCENTS,SELLER_STORE_THEME_LABELS,SELLER_STORE_ZONE_LABELS,SELLER_STORE_ZONES,stepSellerStoreZone,type SellerStoreProfile,type SellerStoreZone} from '@/lib/seller/store';
 import {DEFAULT_BODY,parseStoredBody,sourceLabel,STORAGE_KEY} from '@/lib/wardrobe/body';
@@ -32,7 +33,8 @@ export default function Wardrobe(){
  const [collection,setCollection]=useState<WardrobeCollectionState>(()=>createWardrobeCollection()),[collectionOpen,setCollectionOpen]=useState(false);
  const sellerProfiles=useMemo(()=>mergePublicSellerStores(localSellerStore,remoteSellerStores),[localSellerStore,remoteSellerStores]);
  const sellerProfileByName=useMemo(()=>new Map(sellerProfiles.map(store=>[store.storeName,store])),[sellerProfiles]);
- const sellerProducts=useMemo(()=>publishedSellerCatalog(mergePublicSellerProducts(localSellerProducts,remoteSellerStores)),[localSellerProducts,remoteSellerStores]);
+ const [sellerTextures,setSellerTextures]=useState<Record<string,string>>({});
+ const sellerProducts=useMemo(()=>publishedSellerCatalog(mergePublicSellerProducts(localSellerProducts,remoteSellerStores),sellerTextures),[localSellerProducts,remoteSellerStores,sellerTextures]);
  const catalog=useMemo(()=>[...sellerProducts,...PRODUCTS],[sellerProducts]);
  const stores=useMemo(()=>buildVirtualStores(catalog).map(store=>{const profile=sellerProfileByName.get(store.name);return profile?{...store,accent:SELLER_STORE_THEME_ACCENTS[profile.theme]}:store;}),[catalog,sellerProfileByName]);
  const storeProducts=useMemo(()=>activeStore?catalog.filter(item=>item.brand===activeStore):[],[activeStore,catalog]);
@@ -48,7 +50,7 @@ export default function Wardrobe(){
  const recommendedStoreNames=useMemo(()=>new Set(recommendations.map(item=>item.product.brand)),[recommendations]);
 
  useEffect(()=>{
-  const syncSellerProducts=()=>{try{setLocalSellerProducts(parseStoredSellerProducts(localStorage.getItem(SELLER_PRODUCTS_STORAGE_KEY)));}catch{setLocalSellerProducts([]);}};
+  const syncSellerProducts=()=>{setSellerTextures(readSessionTextures());try{setLocalSellerProducts(parseStoredSellerProducts(localStorage.getItem(SELLER_PRODUCTS_STORAGE_KEY)));}catch{setLocalSellerProducts([]);}};
   const syncSellerStore=()=>{try{setLocalSellerStore(parseStoredSellerStore(localStorage.getItem(SELLER_STORE_STORAGE_KEY)));}catch{setLocalSellerStore(null);}};
   const syncCollection=()=>{try{setCollection(parseStoredWardrobeCollection(localStorage.getItem(WARDROBE_COLLECTION_STORAGE_KEY)));}catch{setCollection(createWardrobeCollection());}};
   const hydrate=window.setTimeout(()=>{try{const stored=parseStoredBody(localStorage.getItem(STORAGE_KEY));if(stored){setBody(stored);setSaved(true);}}catch{}syncSellerProducts();syncSellerStore();syncCollection();},0);

@@ -28,14 +28,25 @@ type StageApi={scene:THREE.Scene;camera:THREE.PerspectiveCamera;controls:OrbitCo
 export default function AvatarView({body,outfit,products,storeName,onDrop,onGarmentClick}:{body:BodyProfile;outfit:Outfit;products:Product[];storeName:string;onDrop:(id:string)=>void;onGarmentClick?:(id:string)=>void}){
  const host=useRef<HTMLDivElement>(null),api=useRef<StageApi|null>(null);
  const latest=useRef({body,outfit,products});
- const clickRef=useRef(onGarmentClick);
+ const clickRef=useRef(onGarmentClick),textureCache=useRef(new Map<string,THREE.Texture>()),textureLoading=useRef(new Set<string>());
  const [status,setStatus]=useState('loading'),[drag,setDrag]=useState(false),[view,setView]=useState('정면'),[hoverName,setHoverName]=useState<string|null>(null);
  function update(){const a=api.current;if(!a)return;const {body,outfit,products}=latest.current;
    const scale=body.measurements.height/175;a.avatar.scale.setScalar(scale);
    a.avatar.traverse(o=>{if(o instanceof THREE.Mesh && o.morphTargetDictionary && o.morphTargetInfluences){const b=body.measurements;const weights:Record<string,number>={chest:(b.chest/scale-96)/50,waist:(b.waist/scale-80)/60,hips:(b.hips/scale-98)/55,shoulders:(b.shoulders/scale-43)/10,armLength:(b.armLength/scale-59)/15,legLength:(b.legLength/scale-105)/20,head:(b.head/scale-57)/13};for(const [name,index]of Object.entries(o.morphTargetDictionary))o.morphTargetInfluences[index]=Math.max(-1,Math.min(1,weights[name]??0));}});
    let minY=Infinity,maxY=-Infinity;const vertex=new THREE.Vector3();a.avatar.traverse(o=>{if(o instanceof THREE.Mesh){const positions=o.geometry.getAttribute('position');for(let i=0;i<positions.count;i++){o.getVertexPosition(i,vertex);minY=Math.min(minY,vertex.y);maxY=Math.max(maxY,vertex.y);}}});if(Number.isFinite(minY)&&maxY>minY){a.avatar.scale.y=body.measurements.height/100/(maxY-minY);a.avatar.position.y=-minY*a.avatar.scale.y;}
    while(a.clothes.children.length){const item=a.clothes.children[0];a.clothes.remove(item);disposeGroup(item);}
-   Object.values(outfit).forEach(item=>{const p=products.find(product=>product.id===item.productId);const s=p?.sizes.find(candidate=>candidate.label===item.size);if(p&&s)a.clothes.add(makeGarment(p,s,body));});a.clearHover();a.render();
+   Object.values(outfit).forEach(item=>{const p=products.find(product=>product.id===item.productId);const s=p?.sizes.find(candidate=>candidate.label===item.size);if(p&&s)a.clothes.add(makeGarment(p,s,body,false,{frontTexture:textureFor(p)}));});a.clearHover();a.render();
+ }
+ // 평면 사진에서 만든 앞면 텍스처는 처음 쓸 때 불러와 캐시하고, 로드가 끝나면 옷을 다시 만든다. 그 전에는 색만으로 먼저 보여 준다.
+ function textureFor(product:Product){
+  if(!product.frontTexture)return undefined;
+  const source=product.frontTexture,key=`${product.id}:${source.length}:${source.slice(-24)}`,cached=textureCache.current.get(key);
+  if(cached)return cached;
+  if(!textureLoading.current.has(key)){
+   textureLoading.current.add(key);
+   new THREE.TextureLoader().load(source,texture=>{texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=4;textureCache.current.set(key,texture);textureLoading.current.delete(key);update();},undefined,()=>{textureLoading.current.delete(key);});
+  }
+  return undefined;
  }
  useEffect(()=>{
    const el=host.current;if(!el)return;let renderer:THREE.WebGLRenderer;
@@ -74,7 +85,7 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
    api.current={scene,camera,controls,avatar,clothes,render,clearHover:()=>setHover(null)};
    const resize=()=>{const w=el.clientWidth,h=el.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();render();};const observer=new ResizeObserver(resize);observer.observe(el);controls.addEventListener('change',render);resize();
    let disposed=false;new GLTFLoader().load('/models/mannequin.glb',g=>{if(disposed){disposeGroup(g.scene);return;}g.scene.traverse(o=>{if(o instanceof THREE.Mesh){o.material=new THREE.MeshPhysicalMaterial({color:'#d3cdc6',roughness:.58,clearcoat:.14,clearcoatRoughness:.5});o.castShadow=true;o.receiveShadow=true;}});avatar.add(g.scene);setStatus('ready');update();},undefined,()=>setStatus('error'));
-   return()=>{disposed=true;observer.disconnect();dom.removeEventListener('pointerdown',onDown);dom.removeEventListener('pointerup',onUp);dom.removeEventListener('pointermove',onMove);dom.removeEventListener('pointerleave',onLeave);controls.dispose();disposeGroup(scene);environment.dispose();pmrem.dispose();renderer.dispose();renderer.domElement.remove();api.current=null;};
+   return()=>{disposed=true;observer.disconnect();dom.removeEventListener('pointerdown',onDown);dom.removeEventListener('pointerup',onUp);dom.removeEventListener('pointermove',onMove);dom.removeEventListener('pointerleave',onLeave);controls.dispose();disposeGroup(scene);textureCache.current.forEach(texture=>texture.dispose());textureCache.current.clear();environment.dispose();pmrem.dispose();renderer.dispose();renderer.domElement.remove();api.current=null;};
  },[]);
  useEffect(()=>{clickRef.current=onGarmentClick;});
  useEffect(()=>{latest.current={body,outfit,products};update();},[body,outfit,products]);

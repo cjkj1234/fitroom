@@ -224,3 +224,12 @@
 .seller-color-field small{color:#8a8d94}
 .seller-color-field>span{display:block;margin-bottom:8px;font-size:12px;font-weight:700;color:#4c5057}
 .seller-color-field>span small{font-weight:400;margin-left:6px}
+.seller-texture-field{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid #dfe1e5;border-radius:8px;background:#f7f8fa;cursor:pointer}
+.seller-texture-field input[type=checkbox]{width:18px;height:18px;flex:none}
+.seller-texture-field img{width:54px;height:72px;object-fit:cover;border-radius:5px;border:1px solid #d5d8de;flex:none}
+.seller-texture-field span{display:flex;flex-direction:column;gap:3px;min-width:0}
+.seller-texture-field strong{font-size:13px}
+.seller-texture-field small{font-size:11px;line-height:1.5;color:#747881}
+.seller-texture-note{margin:0;font-size:12px;line-height:1.55;color:#8a6d3b}
+.seller-form-grid .seller-texture-field{flex-direction:row;align-items:center;text-align:left}
+.seller-form-grid .seller-texture-field span{align-items:flex-start}
