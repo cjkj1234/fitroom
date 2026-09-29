@@ -21,7 +21,10 @@ export const sellerStoreSchema=z.object({
 
 export type SellerStoreProfile=z.infer<typeof sellerStoreSchema>;
 
-export function createDefaultSellerStore(storeName='오후옷장',now=new Date().toISOString()):SellerStoreProfile{
+// 시연 상점 이름(오후옷장 등)과 겹치면 시연 상품이 섞이므로 기본 이름으로 쓰지 않는다.
+export const DEFAULT_SELLER_STORE_NAME='내 상점';
+
+export function createDefaultSellerStore(storeName=DEFAULT_SELLER_STORE_NAME,now=new Date().toISOString()):SellerStoreProfile{
  return {version:1,storeName,tagline:'오늘도, 기분 좋은 옷',theme:'modern',music:'calm',placements:[],previewConfirmed:false,status:'draft',updatedAt:now,publishedAt:null};
 }
 

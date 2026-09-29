@@ -12,7 +12,7 @@ export const adRequestSchema=z.object({
  storeName:requiredText(40),
  product:z.object({
   name:requiredText(80),
-  category:z.enum(['top','bottom','hat']),
+  category:z.enum(['top','bottom','hat'],{message:'카테고리를 선택해 주세요.'}),
   color:requiredText(40),
   features:z.array(requiredText(100)).min(1,'상품 특징을 한 가지 이상 입력해 주세요.').max(5,'상품 특징은 다섯 가지까지 입력할 수 있어요.'),
   material:optionalText(100),
@@ -22,9 +22,9 @@ export const adRequestSchema=z.object({
  campaign:z.object({
   channel:z.literal('instagram_post'),
   audience:requiredText(80),
-  tone:z.enum(['friendly','minimal','energetic']),
-  purpose:z.enum(['product_intro','new_arrival','promotion']),
-  cta:z.enum(['view_product','visit_store','inquire']),
+  tone:z.enum(['friendly','minimal','energetic'],{message:'말투를 선택해 주세요.'}),
+  purpose:z.enum(['product_intro','new_arrival','promotion'],{message:'광고 목적을 선택해 주세요.'}),
+  cta:z.enum(['view_product','visit_store','inquire'],{message:'마지막 안내를 선택해 주세요.'}),
   additionalRequest:optionalText(300),
  }).strict(),
 }).strict().superRefine((value,ctx)=>{

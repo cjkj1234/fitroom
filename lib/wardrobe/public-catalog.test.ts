@@ -34,6 +34,12 @@ test('초안 매장과 배치가 깨진 매장은 공개하지 않는다',()=>{
  assert.deepEqual(buildPublicSellerStores([row([product()],draftStore),row([product({storeName:'다른매장'})],brokenStore)]),[]);
 });
 
+test('시연 상점과 같은 이름으로 게시된 매장은 공개하지 않는다',()=>{
+ const demoNamed=store({storeName:'오후옷장'});
+ assert.deepEqual(buildPublicSellerStores([row([product({storeName:'오후옷장'})],demoNamed)]),[]);
+ assert.equal(buildPublicSellerStores([row([product()],store())]).length,1);
+});
+
 test('같은 이름의 매장은 최신 행 하나만 사용한다',()=>{
  const latest=store({tagline:'최신 소개'}),older=store({tagline:'이전 소개'});
  const result=buildPublicSellerStores([row([product()],latest,'2026-09-25T09:00:00.000Z'),row([product()],older,'2026-09-24T09:00:00.000Z')]);

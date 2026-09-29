@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {emptySellerSize,normalizeSellerProductPublication,parseStoredSellerProducts,productReadiness,publishSellerProduct,publishedSellerProducts,sellerProductSchema,unpublishSellerProduct,upsertSellerProduct,type SellerProduct} from './products';
+import {SELLER_MEASUREMENT_MAX_CM,describeSellerProductIssue,emptySellerSize,isReservedStoreName,normalizeSellerProductPublication,parseStoredSellerProducts,productReadiness,publishSellerProduct,publishedSellerProducts,reservedStoreNameMessage,sellerProductSchema,unpublishSellerProduct,upsertSellerProduct,type SellerProduct} from './products';
 
 const now='2026-09-21T00:00:00.000Z';
 const top:SellerProduct={version:1,id:'p1',storeName:'오후옷장',name:'스트라이프 반팔',category:'top',color:'네이비',features:['스트라이프'],material:null,priceKrw:29000,stock:3,purchaseUrl:null,sizes:[{...emptySellerSize('M'),length:70,chestFlat:56}],createdAt:now,updatedAt:now,status:'draft',publishedAt:null};
@@ -44,6 +44,25 @@ test('only complete products can be published and exposed to shoppers',()=>{
 test('published products and small-shop purchase links survive a storage round trip',()=>{
  const published=publishSellerProduct({...top,purchaseUrl:'https://example.com/products/p1'},'2026-09-21T01:00:00.000Z')!;
  assert.deepEqual(parseStoredSellerProducts(JSON.stringify([published])),[published]);
+});
+
+test('시연 상점 이름은 공백과 대소문자를 무시하고 예약된다',()=>{
+ assert.equal(isReservedStoreName('오후옷장'),true);
+ assert.equal(isReservedStoreName(' 오후 옷장 '),true);
+ assert.equal(isReservedStoreName('모퉁이상점'),true);
+ assert.equal(isReservedStoreName('우리동네옷가게'),false);
+ assert.match(reservedStoreNameMessage(' 오후옷장 '),/‘오후옷장’/);
+});
+
+test('스키마 오류 경로를 판매자가 이해하는 항목 이름으로 바꾼다',()=>{
+ const sizes=[{label:'M'},{label:' L '}];
+ assert.equal(describeSellerProductIssue(['sizes',1,'sleeve'],sizes),'L 사이즈의 소매');
+ assert.equal(describeSellerProductIssue(['sizes',5,'headCirc'],sizes),'6번째 사이즈의 머리둘레');
+ assert.equal(describeSellerProductIssue(['priceKrw'],sizes),'판매가');
+ assert.equal(describeSellerProductIssue([],sizes),'입력 내용');
+ const tooLong=sellerProductSchema.safeParse({...top,sizes:[{...emptySellerSize('M'),length:SELLER_MEASUREMENT_MAX_CM+1}]});
+ assert.equal(tooLong.success,false);
+ if(!tooLong.success)assert.equal(describeSellerProductIssue(tooLong.error.issues[0].path,[{label:'M'}]),'M 사이즈의 총장');
 });
 
 test('unpublishing and incomplete edits remove a product from the public catalog',()=>{

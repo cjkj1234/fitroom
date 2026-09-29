@@ -5,18 +5,18 @@ import Link from 'next/link';
 import {Check,CheckCircle2,Eye,GripVertical,Music2,PackagePlus,Paintbrush,Plus,Save,Store,Undo2,X} from 'lucide-react';
 import SellerHeader from '@/components/seller-header';
 import {sellerProductToWardrobeProduct} from '@/lib/seller/catalog';
-import {parseStoredSellerProducts,SELLER_CATEGORY_LABELS,SELLER_PRODUCTS_STORAGE_KEY,type SellerProduct} from '@/lib/seller/products';
-import {createDefaultSellerStore,normalizeSellerStore,parseStoredSellerStore,placeSellerProduct,publishSellerStore,removeSellerProductPlacement,SELLER_STORE_MUSIC,SELLER_STORE_MUSIC_LABELS,SELLER_STORE_STORAGE_KEY,SELLER_STORE_THEME_ACCENTS,SELLER_STORE_THEME_LABELS,SELLER_STORE_THEMES,SELLER_STORE_ZONE_LABELS,SELLER_STORE_ZONES,sellerStoreReadiness,unpublishSellerStore,type SellerStoreProfile,type SellerStoreZone} from '@/lib/seller/store';
+import {isReservedStoreName,parseStoredSellerProducts,reservedStoreNameMessage,SELLER_CATEGORY_LABELS,SELLER_PRODUCTS_STORAGE_KEY,type SellerProduct} from '@/lib/seller/products';
+import {createDefaultSellerStore,DEFAULT_SELLER_STORE_NAME,normalizeSellerStore,parseStoredSellerStore,placeSellerProduct,publishSellerStore,removeSellerProductPlacement,SELLER_STORE_MUSIC,SELLER_STORE_MUSIC_LABELS,SELLER_STORE_STORAGE_KEY,SELLER_STORE_THEME_ACCENTS,SELLER_STORE_THEME_LABELS,SELLER_STORE_THEMES,SELLER_STORE_ZONE_LABELS,SELLER_STORE_ZONES,sellerStoreReadiness,unpublishSellerStore,type SellerStoreProfile,type SellerStoreZone} from '@/lib/seller/store';
 
 export default function SellerStoreBuilder(){
  const [products,setProducts]=useState<SellerProduct[]>([]),[profile,setProfile]=useState<SellerStoreProfile>(()=>createDefaultSellerStore());
- const [savedStoreName,setSavedStoreName]=useState('오후옷장'),[selectedZone,setSelectedZone]=useState<SellerStoreZone>('center-rack');
+ const [savedStoreName,setSavedStoreName]=useState(DEFAULT_SELLER_STORE_NAME),[selectedZone,setSelectedZone]=useState<SellerStoreZone>('center-rack');
  const [notice,setNotice]=useState(''),[error,setError]=useState('');
  const publishedProducts=useMemo(()=>products.filter(product=>product.status==='published'),[products]);
  const publishedIds=useMemo(()=>publishedProducts.map(product=>product.id),[publishedProducts]);
  const readiness=sellerStoreReadiness(profile,publishedIds);
 
- useEffect(()=>{const timer=window.setTimeout(()=>{try{const storedProducts=parseStoredSellerProducts(localStorage.getItem(SELLER_PRODUCTS_STORAGE_KEY));const storedStore=parseStoredSellerStore(localStorage.getItem(SELLER_STORE_STORAGE_KEY));const storeName=storedStore?.storeName??storedProducts[0]?.storeName??'오후옷장';setProducts(storedProducts);setProfile(storedStore??createDefaultSellerStore(storeName));setSavedStoreName(storeName);}catch{}},0);return()=>window.clearTimeout(timer);},[]);
+ useEffect(()=>{const timer=window.setTimeout(()=>{try{const storedProducts=parseStoredSellerProducts(localStorage.getItem(SELLER_PRODUCTS_STORAGE_KEY));const storedStore=parseStoredSellerStore(localStorage.getItem(SELLER_STORE_STORAGE_KEY));const storeName=storedStore?.storeName??storedProducts[0]?.storeName??DEFAULT_SELLER_STORE_NAME;setProducts(storedProducts);setProfile(storedStore??createDefaultSellerStore(storeName));setSavedStoreName(storeName);}catch{}},0);return()=>window.clearTimeout(timer);},[]);
  useEffect(()=>{if(!notice)return;const timer=window.setTimeout(()=>setNotice(''),2800);return()=>window.clearTimeout(timer);},[notice]);
 
  function edit<K extends 'storeName'|'tagline'|'theme'|'music'|'previewConfirmed'>(key:K,value:SellerStoreProfile[K]){setProfile(previous=>({...previous,[key]:value,status:'draft',publishedAt:null}));setError('');}
@@ -26,11 +26,12 @@ export default function SellerStoreBuilder(){
   if(savedStoreName!==normalized.storeName){nextProducts=products.map(product=>product.storeName===savedStoreName?{...product,storeName:normalized.storeName,updatedAt:now}:product);}
   try{localStorage.setItem(SELLER_STORE_STORAGE_KEY,JSON.stringify(normalized));localStorage.setItem(SELLER_PRODUCTS_STORAGE_KEY,JSON.stringify(nextProducts));setProfile(normalized);setProducts(nextProducts);setSavedStoreName(normalized.storeName);setNotice(message);setError('');return true;}catch{setError('브라우저에 매장 정보를 저장하지 못했어요.');return false;}
  }
- function save(){if(!profile.storeName.trim()||!profile.tagline.trim()){setError('매장 이름과 한 줄 소개를 입력해 주세요.');return;}persist(profile,'가상 매장 구성을 임시 저장했어요.');}
+ function save(){if(!profile.storeName.trim()||!profile.tagline.trim()){setError('매장 이름과 한 줄 소개를 입력해 주세요.');return;}if(isReservedStoreName(profile.storeName)){setError(reservedStoreNameMessage(profile.storeName));return;}persist(profile,'가상 매장 구성을 임시 저장했어요.');}
  function place(productId:string,zone=selectedZone){setProfile(previous=>placeSellerProduct(previous,productId,zone));setSelectedZone(zone);setNotice(`${SELLER_STORE_ZONE_LABELS[zone]}에 상품을 배치했어요.`);}
  function drop(event:DragEvent<HTMLElement>,zone:SellerStoreZone){event.preventDefault();const id=event.dataTransfer.getData('text/plain');if(publishedProducts.some(product=>product.id===id))place(id,zone);}
  function togglePublication(){
   if(profile.status==='published'){persist(unpublishSellerStore(profile),'가상 매장 게시를 내렸어요.');return;}
+  if(isReservedStoreName(profile.storeName)){setError(reservedStoreNameMessage(profile.storeName));return;}
   const published=publishSellerStore(profile,publishedIds);if(!published){setError(`게시 준비를 완료해 주세요. 남은 단계: ${readiness.steps.filter(step=>!step.complete).map(step=>step.label).join(', ')}`);return;}persist(published,'가상 매장을 게시했어요. 이용자 상점 거리에 반영됩니다.');
  }
  function resetLayout(){setProfile(previous=>({...previous,placements:[],previewConfirmed:false,status:'draft',publishedAt:null}));setNotice('상품 배치를 초기화했어요.');}

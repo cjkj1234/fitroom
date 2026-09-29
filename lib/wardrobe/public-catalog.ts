@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {publishedSellerProducts,sellerProductSchema,type SellerProduct} from '../seller/products';
+import {isReservedStoreName,publishedSellerProducts,sellerProductSchema,type SellerProduct} from '../seller/products';
 import {sellerStoreReadiness,sellerStoreSchema,type SellerStoreProfile} from '../seller/store';
 import {parseSellerWorkspaceRow,type SellerWorkspaceRow} from '../seller/workspace';
 
@@ -20,7 +20,7 @@ export function buildPublicSellerStores(rows:SellerWorkspaceRow[]):PublicSellerS
  const usedNames=new Set<string>();
  for(const row of rows){
   const workspace=parseSellerWorkspaceRow(row),store=workspace?.store;
-  if(!workspace||!store||store.status!=='published'||usedNames.has(store.storeName))continue;
+  if(!workspace||!store||store.status!=='published'||usedNames.has(store.storeName)||isReservedStoreName(store.storeName))continue;
   const products=publishedSellerProducts(workspace.products).filter(product=>product.storeName===store.storeName);
   const productIds=new Set(products.map(product=>product.id));
   if(!sellerStoreReadiness(store,[...productIds]).ready)continue;
