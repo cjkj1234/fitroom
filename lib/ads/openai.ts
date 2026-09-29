@@ -1,9 +1,10 @@
-import {AD_INSTRUCTIONS,AD_MODEL,AD_PROMPT_VERSION,adResponseSchema,extractOpenAIText,openAIAdResponseSchema,type AdRequest} from './contracts';
+import {AD_INSTRUCTIONS,AD_MODEL,AD_PROMPT_VERSION,adResponseSchema,extractOpenAIText,normalizeAdResponseCandidate,openAIAdResponseSchema,type AdRequest} from './contracts';
 
 export type AdGenerationErrorCode='authentication_failed'|'rate_limited'|'provider_unavailable'|'generation_failed'|'empty_response'|'invalid_response'|'timeout'|'connection_failed';
+export type AdGenerationErrorDetail={path:string;code:string;message:string};
 
 export class AdGenerationError extends Error{
- constructor(public code:AdGenerationErrorCode,message:string,public status:number){super(message);this.name='AdGenerationError';}
+ constructor(public code:AdGenerationErrorCode,message:string,public status:number,public details:AdGenerationErrorDetail[]=[]){super(message);this.name='AdGenerationError';}
 }
 
 type Fetcher=(input:string|URL|Request,init?:RequestInit)=>Promise<Response>;
@@ -36,8 +37,13 @@ export async function generateAdDrafts(request:AdRequest,apiKey:string,fetcher:F
   if(!text)throw new AdGenerationError('empty_response','완성된 광고 문구를 받지 못했어요. 다시 시도해 주세요.',502);
   let candidate:unknown;
   try{candidate=JSON.parse(text);}catch{throw new AdGenerationError('invalid_response','광고 문구 형식을 확인하지 못했어요. 다시 시도해 주세요.',502);}
-  const result=adResponseSchema.safeParse(candidate);
-  if(!result.success)throw new AdGenerationError('invalid_response','광고 문구가 필요한 형식을 충족하지 못했어요. 다시 시도해 주세요.',502);
+  const result=adResponseSchema.safeParse(normalizeAdResponseCandidate(candidate));
+  if(!result.success)throw new AdGenerationError(
+   'invalid_response',
+   '광고 문구가 필요한 형식을 충족하지 못했어요. 다시 시도해 주세요.',
+   502,
+   result.error.issues.map(issue=>({path:issue.path.join('.'),code:issue.code,message:issue.message})),
+  );
   return {...result.data,meta:{model:AD_MODEL,promptVersion:AD_PROMPT_VERSION,durationMs:Date.now()-startedAt}};
  }catch(error){
   if(error instanceof AdGenerationError)throw error;

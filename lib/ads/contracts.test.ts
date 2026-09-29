@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {adRequestSchema,adResponseSchema,extractOpenAIText,firstValidationMessage} from './contracts';
+import {adRequestSchema,adResponseSchema,extractOpenAIText,firstValidationMessage,normalizeAdResponseCandidate} from './contracts';
 
 const request={
  version:1 as const,storeName:'오후옷장',
@@ -18,3 +18,9 @@ test('promotion requires a confirmed discount percentage',()=>{const result=adRe
 test('invalid price uses a seller-friendly validation message',()=>{const result=adRequestSchema.safeParse({...request,product:{...request.product,priceKrw:Number.NaN}});assert.equal(result.success,false);if(!result.success)assert.equal(firstValidationMessage(result.error),'판매가는 숫자로 입력해 주세요.');});
 test('response requires three unique angles and headlines',()=>{assert.equal(adResponseSchema.safeParse({drafts}).success,true);assert.equal(adResponseSchema.safeParse({drafts:[drafts[0],{...drafts[1],angle:'product_facts'},drafts[2]]}).success,false);});
 test('response text is extracted from the Responses API output',()=>{assert.equal(extractOpenAIText({output:[{type:'message',content:[{type:'output_text',text:'{"drafts":[]}'}]}]}),'{"drafts":[]}');assert.equal(extractOpenAIText({output:[]}),null);});
+test('model hashtag markers and spaces are normalized before validation',()=>{
+ const candidate={drafts:drafts.map(draft=>({...draft,hashtags:draft.hashtags.map(tag=>` #${tag}! `)}))};
+ const normalized=normalizeAdResponseCandidate(candidate);
+ const parsed=adResponseSchema.parse(normalized);
+ assert.deepEqual(parsed.drafts[0].hashtags,['오후옷장','스트라이프티','반팔티']);
+});

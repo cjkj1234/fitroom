@@ -89,6 +89,18 @@ export const AD_INSTRUCTIONS=`당신은 한국의 소규모 의류 판매자를 
 코디와 일상 장면은 '~와 매치해 보세요', '~에 활용해 보세요'처럼 제안으로 표현하세요.
 해시태그에는 # 기호와 공백을 넣지 마세요. 세 초안의 제목과 본문은 서로 뚜렷하게 달라야 합니다.`;
 
+export function normalizeAdResponseCandidate(value:unknown):unknown{
+ if(!value||typeof value!=='object')return value;
+ const root=value as Record<string,unknown>;
+ if(!Array.isArray(root.drafts))return value;
+ return {...root,drafts:root.drafts.map(draft=>{
+  if(!draft||typeof draft!=='object')return draft;
+  const item=draft as Record<string,unknown>;
+  if(!Array.isArray(item.hashtags))return draft;
+  return {...item,hashtags:item.hashtags.map(tag=>typeof tag==='string'?tag.normalize('NFKC').replace(/[^\p{L}\p{N}_]+/gu,''):tag)};
+ })};
+}
+
 export function extractOpenAIText(response:unknown){
  if(!response||typeof response!=='object')return null;
  const output=(response as {output?:unknown}).output;

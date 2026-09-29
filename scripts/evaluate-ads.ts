@@ -1,7 +1,8 @@
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {adRequestSchema,type AdDraft,type AdRequest} from '../lib/ads/contracts';
-import {generateAdDrafts} from '../lib/ads/openai';
+import {adRequestSchema} from '../lib/ads/contracts';
+import {automaticReview} from '../lib/ads/automatic-review';
+import {AdGenerationError,generateAdDrafts} from '../lib/ads/openai';
 
 type EvaluationCase={id:string;description:string;expectedValid:boolean;request:unknown};
 type EvaluationFile={cases:EvaluationCase[]};
@@ -20,17 +21,6 @@ if(dryRun){
 const apiKey=process.env.OPENAI_API_KEY;
 if(!apiKey)throw new Error('OPENAI_API_KEY가 없습니다. 키를 파일에 저장하지 말고 실행 환경의 비밀값으로 설정해 주세요.');
 
-const riskyClaims=['방수','발수','보온','신축성','자외선 차단','체형 보정','다리가 길어','슬림해 보','구김 방지','항균','친환경','한정 수량','무료 배송'];
-function automaticReview(request:AdRequest,drafts:AdDraft[]){
- const sourceText=JSON.stringify(request);
- const outputText=drafts.map(draft=>`${draft.headline} ${draft.body} ${draft.cta} ${draft.hashtags.join(' ')}`).join(' ');
- const unsupportedClaimCandidates=riskyClaims.filter(claim=>outputText.includes(claim)&&!sourceText.includes(claim));
- const numberClaims=outputText.match(/\d[\d,]*(?:원|%|대)?/g)??[];
- const compactSource=sourceText.replaceAll(',','');
- const unsupportedNumberCandidates=[...new Set(numberClaims.filter(claim=>!compactSource.includes(claim.replaceAll(',',''))))];
- const productSignals=[request.product.name,request.product.color,...request.product.features].filter(signal=>outputText.includes(signal));
- return {schemaValid:true,productSignalCount:productSignals.length,unsupportedClaimCandidates,unsupportedNumberCandidates,needsManualReview:unsupportedClaimCandidates.length>0||unsupportedNumberCandidates.length>0};
-}
 function markdown(results:any[],createdAt:string){
  const rows=results.map(result=>`| ${result.id} | ${result.durationMs}ms | ${result.automaticReview.productSignalCount} | ${result.automaticReview.unsupportedClaimCandidates.join(', ')||'-'} | ${result.automaticReview.unsupportedNumberCandidates.join(', ')||'-'} | 미평가 |`).join('\n');
  return `# 광고 문구 모델 평가\n\n실행 시각: ${createdAt}  \n모델: ${results[0]?.model??'-'}  \n프롬프트: ${results[0]?.promptVersion??'-'}\n\n자동 검사는 결과 형식과 의심 표현을 찾는 보조 절차입니다. 사실 보존·말투·활용 가능성은 사람이 원문과 대조해 최종 평가해야 합니다.\n\n| 입력 | 시간 | 상품 정보 신호 | 의심 성능 표현 | 의심 숫자 | 사람 평가 |\n| --- | ---: | ---: | --- | --- | --- |\n${rows}\n\n## 사람 평가 기준\n\n각 결과를 입력과 대조해 사실 보존, 요청한 말투 반영, 소상공인이 수정해 쓸 수 있는 정도를 1–5점으로 기록합니다. 자동 검사 통과를 사실 검증 완료로 간주하지 않습니다.\n`;
@@ -38,7 +28,14 @@ function markdown(results:any[],createdAt:string){
 
 const results=[];
 for(const item of validCases){
- const generated=await generateAdDrafts(item.request,apiKey);
+ let generated;
+ try{generated=await generateAdDrafts(item.request,apiKey);}
+ catch(error){
+  if(error instanceof AdGenerationError&&error.details.length){
+   console.error(`${item.id}: 응답 검증 실패`,error.details);
+  }
+  throw error;
+ }
  results.push({id:item.id,description:item.description,model:generated.meta.model,promptVersion:generated.meta.promptVersion,durationMs:generated.meta.durationMs,request:item.request,drafts:generated.drafts,automaticReview:automaticReview(item.request,generated.drafts),manualReview:{factPreservation:null,toneMatch:null,usefulness:null,notes:''}});
  console.log(`${item.id}: ${generated.meta.durationMs}ms`);
 }

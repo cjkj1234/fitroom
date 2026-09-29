@@ -35,3 +35,15 @@ test('malformed provider JSON is reported as an invalid response',async()=>{
  const fetcher=async()=>new Response('not-json',{status:200,headers:{'Content-Type':'application/json'}});
  await assert.rejects(()=>generateAdDrafts(request,'test-key',fetcher),error=>error instanceof AdGenerationError&&error.code==='invalid_response');
 });
+
+test('invalid structured content exposes validation metadata without response content',async()=>{
+ const invalid={drafts:[...result.drafts.slice(0,2),{...result.drafts[2],headline:''}]};
+ const fetcher=async()=>new Response(JSON.stringify({output:[{content:[{type:'output_text',text:JSON.stringify(invalid)}]}]}),{status:200,headers:{'Content-Type':'application/json'}});
+ await assert.rejects(()=>generateAdDrafts(request,'test-key',fetcher),error=>{
+  assert.ok(error instanceof AdGenerationError);
+  assert.equal(error.code,'invalid_response');
+  assert.equal(error.details[0]?.path,'drafts.2.headline');
+  assert.equal(JSON.stringify(error.details).includes('주말 코디'),false);
+  return true;
+ });
+});
