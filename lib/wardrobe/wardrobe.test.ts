@@ -49,6 +49,15 @@ test('3D garment dimensions do not expand when body girth increases',()=>{
  const p=PRODUCTS[0],a=makeGarment(p,p.sizes[1],DEFAULT_BODY),b=makeGarment(p,p.sizes[1],setMeasurement(DEFAULT_BODY,'chest',140,'manual'));
  const aa=new THREE.Box3().setFromObject(a).getSize(new THREE.Vector3()),bb=new THREE.Box3().setFromObject(b).getSize(new THREE.Vector3());assert.ok(aa.distanceTo(bb)<1e-8);disposeGroup(a);disposeGroup(b);
 });
+test('each garment group is named after its product so a 3D click can identify it',()=>{
+ for(const p of PRODUCTS){const g=makeGarment(p,p.sizes[0],DEFAULT_BODY);assert.equal(g.name,p.id);disposeGroup(g);}
+});
+test('garments include trim details beyond the main body mesh',()=>{
+ const count=(slot:string)=>{const p=PRODUCTS.find(item=>item.slot===slot)!,g=makeGarment(p,p.sizes[0],DEFAULT_BODY);let meshes=0;g.traverse(o=>{if(o instanceof THREE.Mesh)meshes++;});disposeGroup(g);return meshes;};
+ assert.ok(count('top')>=8,'top: body, hem, collar, sleeves with cuffs and caps');
+ assert.ok(count('bottom')>=12,'bottom: seat, legs, hems, waistband, belt loops, fly');
+ assert.ok(count('hat')>=10,'hat: crown, seams, button, band, brim and rim');
+});
 test('all garment variants generate finite geometry',()=>{for(const p of PRODUCTS)for(const s of p.sizes){const g=makeGarment(p,s,DEFAULT_BODY);g.traverse(o=>{if(o instanceof THREE.Mesh)assert.ok(Array.from(o.geometry.getAttribute('position').array).every(Number.isFinite));});disposeGroup(g);}});
 
 function evidence(side=false):PhotoEvidence{
