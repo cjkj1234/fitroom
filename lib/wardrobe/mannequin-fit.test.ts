@@ -5,7 +5,17 @@ import * as THREE from 'three';
 import {PRODUCTS} from './catalog';
 import {DEFAULT_BODY} from './body';
 import {makeGarment,disposeGroup} from './geometry';
+import {sellerProductToWardrobeProduct} from '../seller/catalog';
+import {emptySellerSize,type SellerProduct} from '../seller/products';
 import type {Product} from './types';
+
+// 판매자가 등록한 오픈카라 셔츠와 카펜터 하프팬츠(실제 상품 사진을 보고 만든 예시)도 같은 기준으로 검사한다.
+const now='2026-09-29T00:00:00.000Z';
+const sellerBase={version:1 as const,storeName:'테스트상점',material:null,priceKrw:10000,stock:1,purchaseUrl:null,createdAt:now,updatedAt:now,status:'published' as const,publishedAt:now};
+const SELLER_SAMPLES:SellerProduct[]=[
+ {...sellerBase,id:'shirt',name:'오픈카라 반팔 셔츠',category:'top',color:'카키',colorHex:'#787260',features:['오픈카라','단추 여밈','왼쪽 가슴 포켓','루즈 핏'],sizes:[{...emptySellerSize('M'),length:72,chestFlat:58,shoulder:52,sleeve:24}]},
+ {...sellerBase,id:'cargo',name:'카펜터 와이드 하프 팬츠',category:'bottom',color:'카키',colorHex:'#736249',features:['와이드 핏','뒷면 패치 포켓','옆 카고 포켓'],sizes:[{...emptySellerSize('M'),length:58,waistFlat:40,hipsFlat:60,thighFlat:38,rise:33}]},
+];
 
 // 실제 마네킹(public/models/mannequin.glb)의 정점을 옷 안쪽에서 바깥으로 쏘아, 옷 표면을 만나지 못하는(=몸이 옷을 뚫고 나온) 정점의 비율을 잰다.
 function loadMannequin(){
@@ -44,7 +54,7 @@ function exposedShare(product:Product){
 
 // 허용 비율은 현재 형태에서 측정한 값에 여유를 둔 상한이다. 옷 형태를 바꿔 이 값을 넘기면 몸이 옷을 뚫고 나오는지 화면에서 확인한다.
 const LIMITS:Record<string,number>={hat:.005,top:.05,bottom:.03};
-for(const product of PRODUCTS){
+for(const product of [...PRODUCTS,...SELLER_SAMPLES.map(sellerProductToWardrobeProduct)]){
  test(`${product.name}: 마네킹 몸이 옷 밖으로 뚫고 나오지 않는다`,t=>{
   const result=exposedShare(product);
   t.diagnostic(`노출 ${(result.share*100).toFixed(2)}% (${result.exposed}/${result.tested})`);

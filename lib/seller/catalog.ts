@@ -30,6 +30,14 @@ function compactSize(size:SellerSize):SizeMeasurements{
  return result;
 }
 
+// 실루엣과 별개인 세부 디자인. 이름·특징에 적힌 말로만 판단하고, 적혀 있지 않으면 기본 형태로 둔다.
+export function sellerStyle(product:SellerProduct):Product['style']{
+ const text=[product.name,...product.features].join(' ').toLowerCase();
+ if(product.category==='top'&&(/(^|[^티])셔츠/.test(text)||/(^|[^a-z-])shirt/.test(text)))return 'shirt';
+ if(product.category==='bottom'&&/카펜터|카고|워크\s?팬츠|carpenter|cargo/.test(text))return 'carpenter';
+ return undefined;
+}
+
 function silhouette(product:SellerProduct):Product['silhouette']{
  const text=[product.name,...product.features].join(' ').toLowerCase();
  if(product.category==='hat')return 'cap';
@@ -43,7 +51,7 @@ export function sellerProductToWardrobeProduct(product:SellerProduct):Product{
  const descriptor=[product.name,...product.features,product.material??''].join(' ').toLowerCase();
  return {
   id:`seller:${product.id}`,sellerProductId:product.id,source:'seller',slot:product.category,
-  brand:product.storeName,name:product.name,color:sellerColorToHex(product.color),colorName:product.color,
+  brand:product.storeName,name:product.name,color:product.colorHex??sellerColorToHex(product.color),colorName:product.color,style:sellerStyle(product),
   url:product.purchaseUrl??'',checkedAt:product.updatedAt.slice(0,10),sizes:product.sizes.map(compactSize),defaultSize:product.sizes[0].label,
   silhouette:silhouette(product),elasticWaist:product.category==='bottom'&&(descriptor.includes('밴딩')||descriptor.includes('고무')),
   adjustableHat:product.category==='hat'&&(descriptor.includes('조절')||descriptor.includes('스트랩')),

@@ -213,3 +213,14 @@
 .garment-hint{position:absolute;left:50%;bottom:66px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;background:#2f3136;color:#fff;font-size:12px;padding:8px 13px;border-radius:999px;box-shadow:0 6px 24px #0002;pointer-events:none;z-index:2;white-space:nowrap}
 .look-bar .look-clear{border:1px solid #d7d7d7;background:#fff;color:#6b6b6b;border-radius:999px;padding:6px 11px;font-size:12px;white-space:nowrap;align-self:center}
 .look-bar .look-clear:hover{background:#f4f4f4;color:#2f2f2f}
+
+/* 판매자 상품 등록: 사진에서 찾은 3D 표시 색상 */
+.seller-color-field>div{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.seller-color-field button[style]{width:30px;height:30px;padding:0;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #cfd2d8}
+.seller-color-field button[style].active{box-shadow:0 0 0 2px #2557d6}
+.seller-color-field input[type=color]{width:34px;height:30px;padding:0;border:1px solid #cfd2d8;border-radius:6px;background:#fff}
+.seller-color-field code{font-size:12px;color:#5b5f66}
+.seller-color-clear{border:0;background:transparent;color:#2557d6;font-size:12px;padding:4px}
+.seller-color-field small{color:#8a8d94}
+.seller-color-field>span{display:block;margin-bottom:8px;font-size:12px;font-weight:700;color:#4c5057}
+.seller-color-field>span small{font-weight:400;margin-left:6px}
