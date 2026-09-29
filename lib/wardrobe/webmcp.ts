@@ -12,7 +12,8 @@ export function validateWearRequests(input:unknown):WearRequest[]{
 }
 type Context={registerTool:(tool:{name:string;title:string;description:string;inputSchema:object;annotations:{readOnlyHint:boolean;untrustedContentHint:boolean};execute:(input:unknown)=>unknown},options:{signal:AbortSignal})=>void|Promise<void>};
 export function useWardrobeTools(state:{body:BodyProfile;outfit:Outfit},onWear:(items:WearRequest[])=>void){
- const current=useRef({state,onWear});current.current={state,onWear};
+ const current=useRef({state,onWear});
+ useEffect(()=>{current.current={state,onWear};},[state,onWear]);
  useEffect(()=>{const context=(document as Document&{modelContext?:Context}).modelContext;if(!context?.registerTool)return;const lifecycle=new AbortController();
  const register=(tool:Parameters<Context['registerTool']>[0])=>{try{Promise.resolve(context.registerTool(tool,{signal:lifecycle.signal})).catch(()=>{});}catch{}};
  register({name:'get_wardrobe_state',title:'옷장과 착용 상태 확인',description:'등록 상품의 사이즈, 현재 착용 상품과 현재 적용된 체형 치수를 읽습니다.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:false},execute:()=>({products:PRODUCTS.map(p=>({id:p.id,name:p.name,slot:p.slot,sizes:p.sizes.map(s=>s.label)})),...current.current.state})});

@@ -1,6 +1,6 @@
 'use client';
 
-import {useEffect,useState} from 'react';
+import {useCallback,useEffect,useState} from 'react';
 import {CheckCircle2,Cloud,CloudDownload,CloudUpload,LoaderCircle,LogIn,RefreshCw,TriangleAlert} from 'lucide-react';
 import {AlertDialog,AlertDialogAction,AlertDialogCancel,AlertDialogContent,AlertDialogDescription,AlertDialogFooter,AlertDialogHeader,AlertDialogTitle,AlertDialogTrigger} from '@/components/ui/alert-dialog';
 import {Dialog,DialogContent,DialogDescription,DialogHeader,DialogTitle,DialogTrigger} from '@/components/ui/dialog';
@@ -13,13 +13,13 @@ type SyncError={error?:{code?:string;message?:string}};
 
 function formatDate(value:string|null){return value?new Intl.DateTimeFormat('ko-KR',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value)):'아직 저장하지 않음';}
 function signInPath(){const returnTo=`${window.location.pathname}${window.location.search}`;return `/signin-with-chatgpt?return_to=${encodeURIComponent(returnTo)}`;}
+async function readResponse(response:Response){const data=await response.json() as SyncResponse&SyncError;if(!response.ok)throw Object.assign(new Error(data.error?.message||'서버 동기화에 실패했어요.'),{status:response.status});return data;}
 
 export default function SellerCloudSync(){
  const [open,setOpen]=useState(false),[loading,setLoading]=useState(false),[saving,setSaving]=useState(false),[remote,setRemote]=useState<SyncResponse|null>(null),[message,setMessage]=useState(''),[error,setError]=useState(''),[needsSignIn,setNeedsSignIn]=useState(false);
 
- async function readResponse(response:Response){const data=await response.json() as SyncResponse&SyncError;if(!response.ok)throw Object.assign(new Error(data.error?.message||'서버 동기화에 실패했어요.'),{status:response.status});return data;}
- async function refresh(){setLoading(true);setError('');setNeedsSignIn(false);try{const response=await fetch('/api/seller/workspace',{cache:'no-store'});const data=await readResponse(response);setRemote(data);setMessage('');}catch(cause){const issue=cause as Error&{status?:number};setNeedsSignIn(issue.status===401);setError(issue.message);}finally{setLoading(false);}}
- useEffect(()=>{if(open)void refresh();},[open]);
+ const refresh=useCallback(async()=>{setLoading(true);setError('');setNeedsSignIn(false);try{const response=await fetch('/api/seller/workspace',{cache:'no-store'});const data=await readResponse(response);setRemote(data);setMessage('');}catch(cause){const issue=cause as Error&{status?:number};setNeedsSignIn(issue.status===401);setError(issue.message);}finally{setLoading(false);}},[]);
+ useEffect(()=>{if(!open)return;const timer=window.setTimeout(()=>void refresh(),0);return()=>window.clearTimeout(timer);},[open,refresh]);
 
  function localPayload(){
   const products=parseStoredSellerProducts(localStorage.getItem(SELLER_PRODUCTS_STORAGE_KEY));

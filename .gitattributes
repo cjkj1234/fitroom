@@ -1,0 +1,4 @@
+*.docx binary
+*.glb binary
+*.pdf binary
+*.wasm binary

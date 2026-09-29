@@ -13,9 +13,10 @@ type PhotoFile={file:File;url:string};
 export default function BodyEditor({open,onOpenChange,body,onSave,onDelete}:{open:boolean;onOpenChange:(o:boolean)=>void;body:BodyProfile;onSave:(b:BodyProfile)=>void;onDelete:()=>void}){
  const [draft,setDraft]=useState(()=>cloneBody(body)),[tab,setTab]=useState('simple'),[shape,setShape]=useState<'slim'|'regular'|'broad'>('regular');
  const [photos,setPhotos]=useState<Partial<Record<'front'|'side',PhotoFile>>>({}),[busy,setBusy]=useState(false),[progress,setProgress]=useState(''),[error,setError]=useState(''),[result,setResult]=useState(false),[reviewed,setReviewed]=useState(false),[preserved,setPreserved]=useState<string[]>([]);
- const worker=useRef<Worker|null>(null),timeout=useRef<ReturnType<typeof setTimeout>|null>(null),filesRef=useRef(photos),generation=useRef(0);filesRef.current=photos;
+ const worker=useRef<Worker|null>(null),timeout=useRef<ReturnType<typeof setTimeout>|null>(null),filesRef=useRef(photos),generation=useRef(0);
  function stop(){generation.current++;worker.current?.terminate();worker.current=null;if(timeout.current)clearTimeout(timeout.current);timeout.current=null;}
- useEffect(()=>{if(open){setDraft(cloneBody(body));setError('');setResult(false);setReviewed(false);setTab('simple');}else{stop();Object.values(filesRef.current).forEach(p=>URL.revokeObjectURL(p.url));setPhotos({});setBusy(false);}},[open,body]);
+ useEffect(()=>{filesRef.current=photos;},[photos]);
+ useEffect(()=>{let active=true;queueMicrotask(()=>{if(!active)return;if(open){setDraft(cloneBody(body));setError('');setResult(false);setReviewed(false);setTab('simple');}else{stop();Object.values(filesRef.current).forEach(p=>URL.revokeObjectURL(p.url));setPhotos({});setBusy(false);}});return()=>{active=false;};},[open,body]);
  useEffect(()=>()=>{stop();Object.values(filesRef.current).forEach(p=>URL.revokeObjectURL(p.url));},[]);
  function change(key:BodyKey,n:number){setDraft(b=>setMeasurement(b,key,n,'manual'));setReviewed(false);}
  function fileChange(kind:'front'|'side',file?:File){if(!file)return;setError('');setResult(false);setReviewed(false);if(!['image/jpeg','image/png','image/webp'].includes(file.type)){setError('JPG, PNG, WebP 사진을 선택해 주세요.');return;}if(file.size>15*1024*1024){setError('사진 한 장의 크기를 15MB 이하로 줄여 주세요.');return;}if(photos[kind])URL.revokeObjectURL(photos[kind]!.url);setPhotos(p=>({...p,[kind]:{file,url:URL.createObjectURL(file)}}));}

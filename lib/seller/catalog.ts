@@ -55,7 +55,7 @@ export function sellerProductToWardrobeProduct(product:SellerProduct,frontTextur
   url:product.purchaseUrl??'',checkedAt:product.updatedAt.slice(0,10),sizes:product.sizes.map(compactSize),defaultSize:product.sizes[0].label,
   silhouette:silhouette(product),elasticWaist:product.category==='bottom'&&(descriptor.includes('밴딩')||descriptor.includes('고무')),
   adjustableHat:product.category==='hat'&&(descriptor.includes('조절')||descriptor.includes('스트랩')),
-  note:'판매자가 입력한 색상·실측을 기본 의상 형태에 적용한 참고용 3D 표현입니다. 실제 원단과 세부 디자인은 아직 반영되지 않습니다.',
+  note:'판매자가 입력한 색상·실측과 일부 형태 특징을 적용한 참고용 3D 표현입니다. 선택한 상의 사진 무늬는 현재 탭에서만 보이며, 실제 원단·주름·착용감은 반영되지 않습니다.',
   measurementBasis:'판매자가 직접 입력한 상품 실측. 누락된 값은 비교하지 않습니다.',image:SELLER_CATEGORY_IMAGES[product.category],
   priceKrw:product.priceKrw??undefined,stock:product.stock??undefined,
  };
