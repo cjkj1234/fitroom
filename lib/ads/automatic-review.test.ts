@@ -77,3 +77,10 @@ test('drafts that open with the same words are reported',()=>{
  assert.deepEqual(result.styleReview.repeatedOpenings,['화이트 반팔']);
  assert.deepEqual(automaticReview(request,drafts).styleReview.repeatedOpenings,[]);
 });
+
+test('claims that use the material as a reason for an unprovided effect are reported',()=>{
+ const result=automaticReview(request,draftWith(1,{body:'면 100%라 자연스러운 드레이프가 생겨요. 원단이라서 편해요.'}));
+ assert.deepEqual(result.causalClaimCandidates,['100%라','원단이라서']);
+ assert.equal(result.needsManualReview,true);
+ assert.deepEqual(automaticReview(request,draftWith(1,{body:'면 100% 소재입니다.'})).causalClaimCandidates,[]);
+});

@@ -10,6 +10,8 @@ const AI_PATTERNS=[
  '완벽','최고','세련','스타일리시','트렌디','감각적','깔끔','기본 아이템','핵심 아이템','고급스러','무난',
  '궁금한 점','궁금하시면','언제든','문의 환영','제안합니다','추천드립니다','추천합니다',
 ];
+// '면 100%라 ~하기 좋아요'처럼 소재·원단을 이유로 입력에 없는 효과를 말하는 문장 조각.
+const CAUSAL_CLAIM=/(?:100%|소재|원단)(?:이)?라서?/g;
 const ECHO_WINDOW=4;
 
 const compact=(value:string)=>value.replace(/[\s.,!?·~]/g,'');
@@ -50,6 +52,7 @@ export function automaticReview(request:AdRequest,drafts:AdDraft[]){
  const productSignals=[request.product.name,request.product.color,...request.product.features].filter(signal=>outputText.includes(signal));
  // 문체·구성 검사: 요청 문장 인용, 광고 목적 누락, 초안 사이의 반복. 사실 검사와 별도의 사람 검토 후보다.
  const disclosureCandidates=DISCLOSURE_PHRASES.filter(phrase=>drafts.some(draft=>`${draft.headline} ${draft.body} ${draft.cta}`.includes(phrase)));
+ const causalClaimCandidates=[...new Set(drafts.flatMap(draft=>`${draft.headline} ${draft.body}`.match(CAUSAL_CLAIM)??[]))];
  const copyText=drafts.map(draft=>`${draft.headline} ${draft.body} ${draft.cta}`).join(' ');
  const aiPatternCandidates=AI_PATTERNS.filter(pattern=>copyText.includes(pattern)&&!sourceText.includes(pattern));
  const openingOf=(draft:AdDraft)=>draft.body.trim().split(/\s+/).slice(0,2).join(' ');
@@ -64,5 +67,5 @@ export function automaticReview(request:AdRequest,drafts:AdDraft[]){
   repeatedOpenings:duplicates(drafts.map(draft=>[openingOf(draft)])),
  };
  const needsStyleReview=styleReview.requestEchoCandidates.length>0||styleReview.purposeMissingDrafts.length>0||styleReview.repeatedSentences.length>0||styleReview.repeatedCtas.length>0||styleReview.disclosureCandidates.length>0||styleReview.aiPatternCandidates.length>0||styleReview.repeatedOpenings.length>0;
- return {schemaValid:true,productSignalCount:productSignals.length,unsupportedClaimCandidates,unsupportedNumberCandidates,needsManualReview:unsupportedClaimCandidates.length>0||unsupportedNumberCandidates.length>0,styleReview,needsStyleReview};
+ return {schemaValid:true,productSignalCount:productSignals.length,unsupportedClaimCandidates,unsupportedNumberCandidates,causalClaimCandidates,needsManualReview:unsupportedClaimCandidates.length>0||unsupportedNumberCandidates.length>0||causalClaimCandidates.length>0,styleReview,needsStyleReview};
 }
