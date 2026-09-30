@@ -29,6 +29,8 @@ function styleSummary(review:EvaluationResult['automaticReview']['styleReview'])
   review.purposeMissingDrafts.length?`목적 표현 없음(초안 ${review.purposeMissingDrafts.join(', ')})`:'',
   review.repeatedSentences.length?`초안 간 반복 문장 ${review.repeatedSentences.length}건`:'',
   review.repeatedCtas.length?`같은 마지막 안내 ${review.repeatedCtas.length}건`:'',
+  review.aiPatternCandidates.length?`AI 문투 후보(${review.aiPatternCandidates.join(', ')})`:'',
+  review.repeatedOpenings.length?`같은 시작 ${review.repeatedOpenings.length}건`:'',
   review.disclosureCandidates.length?`입력 없음을 언급(${review.disclosureCandidates.join(', ')})`:'',
  ].filter(Boolean);
  return parts.join('; ')||'-';

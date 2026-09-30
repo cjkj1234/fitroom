@@ -63,3 +63,17 @@ test('copy that talks about missing input is reported',()=>{
  assert.equal(result.needsStyleReview,true);
  assert.deepEqual(automaticReview(request,drafts).styleReview.disclosureCandidates,[]);
 });
+
+test('AI-sounding contrasts, slogans, praise words and filler are reported unless the input used them',()=>{
+ const result=automaticReview(request,draftWith(1,{body:'단순한 티셔츠가 아니라 일상의 완성입니다. 세련된 무드를 추천드립니다.'}));
+ assert.deepEqual(result.styleReview.aiPatternCandidates,['가 아니라','단순한','일상의 완성','세련','추천드립니다']);
+ assert.equal(result.needsStyleReview,true);
+ const usedByProduct=automaticReview({...request,product:{...request.product,features:['깔끔한 라인']}},draftWith(0,{body:'깔끔한 라인의 화이트 반팔이에요.'}));
+ assert.deepEqual(usedByProduct.styleReview.aiPatternCandidates,[]);
+});
+
+test('drafts that open with the same words are reported',()=>{
+ const result=automaticReview(request,drafts.map(draft=>({...draft,body:`화이트 반팔 티셔츠는 ${draft.body}`})));
+ assert.deepEqual(result.styleReview.repeatedOpenings,['화이트 반팔']);
+ assert.deepEqual(automaticReview(request,drafts).styleReview.repeatedOpenings,[]);
+});
