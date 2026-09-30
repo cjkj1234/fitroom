@@ -16,6 +16,7 @@
 - [9월 30일 광고 문구 품질 개선 일지](docs/journal/2026-09-30.md)
 - [개발 도구·AI 모델·Codex 스킬 정리](docs/TOOLS_AND_AI.md)
 - [gpt-5-mini 실제 평가 결과](docs/evaluations/runs/2026-09-29T00-23-32-748Z.md)
+- [광고 문구 사람 평가표(최종 프롬프트)](docs/evaluations/RATING_SHEET.md)
 - [프로젝트 보고서 초안](docs/report/REPORT_DRAFT.md)
 - [프로젝트 보고서 PDF](output/pdf/FITROOM_PROJECT_REPORT.pdf)
 - [프로젝트 보고서 편집본](docs/report/FITROOM_PROJECT_REPORT.docx)
