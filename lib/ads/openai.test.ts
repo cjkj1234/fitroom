@@ -16,7 +16,7 @@ test('generation sends server-only structured request and validates output',asyn
  const generated=await generateAdDrafts(request,'test-key',fetcher);
  assert.equal(generated.drafts.length,3);
  const body=JSON.parse(String(captured?.body));
- assert.equal(body.model,'gpt-5-mini');assert.equal(body.store,false);assert.equal(body.text.format.strict,true);
+ assert.equal(body.model,'gpt-5-mini');assert.equal(body.store,false);assert.equal(body.reasoning.effort,'low');assert.equal(body.text.format.strict,true);
  assert.equal(String(body.input).includes('image'),false);
  assert.equal((captured?.headers as Record<string,string>).Authorization,'Bearer test-key');
 });

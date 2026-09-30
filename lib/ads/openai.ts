@@ -7,11 +7,15 @@ export class AdGenerationError extends Error{
  constructor(public code:AdGenerationErrorCode,message:string,public status:number,public details:AdGenerationErrorDetail[]=[]){super(message);this.name='AdGenerationError';}
 }
 
+// 개정 프롬프트(2026-09-30.1)가 길어지며 기본 추론 강도에서 30초를 넘겨 첫 재평가가 시간 초과됐다. 광고 문구에는 깊은 추론이 필요 없어 추론 강도를 낮추고 대기 한도를 늘렸다.
+export const AD_TIMEOUT_MS=45_000;
+export const AD_REASONING_EFFORT='low';
+
 type Fetcher=(input:string|URL|Request,init?:RequestInit)=>Promise<Response>;
 
 export async function generateAdDrafts(request:AdRequest,apiKey:string,fetcher:Fetcher=fetch){
  const controller=new AbortController();
- const timeout=setTimeout(()=>controller.abort(),30_000);
+ const timeout=setTimeout(()=>controller.abort(),AD_TIMEOUT_MS);
  const startedAt=Date.now();
  try{
   const response=await fetcher('https://api.openai.com/v1/responses',{
@@ -20,6 +24,7 @@ export async function generateAdDrafts(request:AdRequest,apiKey:string,fetcher:F
    body:JSON.stringify({
     model:AD_MODEL,
     store:false,
+    reasoning:{effort:AD_REASONING_EFFORT},
     instructions:AD_INSTRUCTIONS,
     input:`아래 JSON 데이터로 인스타그램 게시물 광고 문구를 작성하세요.\n${JSON.stringify(request)}`,
     text:{format:{type:'json_schema',name:'fitroom_ad_drafts',strict:true,schema:openAIAdResponseSchema}},
