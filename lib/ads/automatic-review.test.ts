@@ -50,3 +50,16 @@ test('sentences and closing lines repeated between drafts are reported',()=>{
  assert.deepEqual(result.styleReview.repeatedCtas,['상품 보기']);
  assert.equal(automaticReview(request,drafts.map((draft,index)=>({...draft,cta:`안내 ${index}번 문구`}))).styleReview.repeatedCtas.length,0);
 });
+
+test('list-price wording and unprovided comfort claims are reported for a discounted product',()=>{
+ const result=automaticReview(request,draftWith(0,{body:'정가 29,000원에서 10% 할인 중이에요. 하루 종일 편하게 입기 좋아요.'}));
+ assert.deepEqual(result.unsupportedClaimCandidates,['정가','하루 종일','편하게 입']);
+ assert.equal(result.needsManualReview,true);
+});
+
+test('copy that talks about missing input is reported',()=>{
+ const result=automaticReview(request,draftWith(0,{body:'화이트 반팔이에요. 소재 정보는 제공되지 않았습니다.'}));
+ assert.deepEqual(result.styleReview.disclosureCandidates,['제공되지 않']);
+ assert.equal(result.needsStyleReview,true);
+ assert.deepEqual(automaticReview(request,drafts).styleReview.disclosureCandidates,[]);
+});
