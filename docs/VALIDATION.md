@@ -16,7 +16,7 @@ The same four inputs were regenerated against the real model with each prompt ve
 
 Mannequin fit (2026-09-29): `lib/wardrobe/mannequin-fit.test.ts` loads the mannequin GLB, casts a ray from each mannequin vertex in the region a garment must cover, and fails when the exposed share exceeds a per-slot limit (tops 5%, bottoms 3%, hats 0.5%). Measured exposure: tops 2.5–3.2%, bottoms 0.25–1.5%, hats 0%; the shirt and carpenter-shorts samples built from real product photos were 2.5% and 0%. This checks that the body does not poke through the procedural garments on this one mannequin; it does not validate real-world garment shape or fit accuracy.
 
-Not validated: touch behaviour and performance on a real phone, ad generation on the deployed site (no server secret is connected there), the final human rating of generated ad copy, and any measure of how closely a 3D garment matches its product photo.
+Not validated: touch behaviour and performance on a real phone, ad generation on the deployed site (no server secret is connected there), a per-criterion human rating of generated ad copy (the developer gave one overall 3.5/5 to the twelve drafts of the final prompt, with no per-criterion scores), and any measure of how closely a 3D garment matches its product photo.
 
 The MakeHuman GLB was checked for valid indices, buffers, finite coordinates and named morph targets. Neutral circumference sections were calibrated in asset generation. Garment thumbnail images are z-buffered renders of the same geometry used by the browser.
 
