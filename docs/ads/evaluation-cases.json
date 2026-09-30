@@ -55,7 +55,7 @@
           "tone": "minimal",
           "purpose": "product_intro",
           "cta": "inquire",
-          "additionalRequest": "과장 없이 짧고 친근하게 써 주세요."
+          "additionalRequest": "과장 없이 짧고 담백하게 써 주세요."
         }
       }
     },
@@ -114,7 +114,7 @@
           "tone": "energetic",
           "purpose": "promotion",
           "cta": "view_product",
-          "additionalRequest": "과장 없이 짧고 친근하게 써 주세요."
+          "additionalRequest": "활기차게 쓰되 과장은 피해 주세요."
         }
       }
     },

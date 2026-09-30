@@ -23,9 +23,19 @@ if(dryRun){
 const apiKey=process.env.OPENAI_API_KEY;
 if(!apiKey)throw new Error('OPENAI_API_KEY가 없습니다. 키를 파일에 저장하지 말고 실행 환경의 비밀값으로 설정해 주세요.');
 
+function styleSummary(review:EvaluationResult['automaticReview']['styleReview']){
+ const parts=[
+  review.requestEchoCandidates.length?`요청 문장 인용 의심(${review.requestEchoCandidates.join(', ')})`:'',
+  review.purposeMissingDrafts.length?`목적 표현 없음(초안 ${review.purposeMissingDrafts.join(', ')})`:'',
+  review.repeatedSentences.length?`초안 간 반복 문장 ${review.repeatedSentences.length}건`:'',
+  review.repeatedCtas.length?`같은 마지막 안내 ${review.repeatedCtas.length}건`:'',
+ ].filter(Boolean);
+ return parts.join('; ')||'-';
+}
+
 function markdown(results:EvaluationResult[],createdAt:string){
- const rows=results.map(result=>`| ${result.id} | ${result.durationMs}ms | ${result.automaticReview.productSignalCount} | ${result.automaticReview.unsupportedClaimCandidates.join(', ')||'-'} | ${result.automaticReview.unsupportedNumberCandidates.join(', ')||'-'} | 미평가 |`).join('\n');
- return `# 광고 문구 모델 평가\n\n실행 시각: ${createdAt}  \n모델: ${results[0]?.model??'-'}  \n프롬프트: ${results[0]?.promptVersion??'-'}\n\n자동 검사는 결과 형식과 의심 표현을 찾는 보조 절차입니다. 사실 보존·말투·활용 가능성은 사람이 원문과 대조해 최종 평가해야 합니다.\n\n| 입력 | 시간 | 상품 정보 신호 | 의심 성능 표현 | 의심 숫자 | 사람 평가 |\n| --- | ---: | ---: | --- | --- | --- |\n${rows}\n\n## 사람 평가 기준\n\n각 결과를 입력과 대조해 사실 보존, 요청한 말투 반영, 소상공인이 수정해 쓸 수 있는 정도를 1–5점으로 기록합니다. 자동 검사 통과를 사실 검증 완료로 간주하지 않습니다.\n`;
+ const rows=results.map(result=>`| ${result.id} | ${result.durationMs}ms | ${result.automaticReview.productSignalCount} | ${result.automaticReview.unsupportedClaimCandidates.join(', ')||'-'} | ${result.automaticReview.unsupportedNumberCandidates.join(', ')||'-'} | ${styleSummary(result.automaticReview.styleReview)} | 미평가 |`).join('\n');
+ return `# 광고 문구 모델 평가\n\n실행 시각: ${createdAt}  \n모델: ${results[0]?.model??'-'}  \n프롬프트: ${results[0]?.promptVersion??'-'}\n\n자동 검사는 결과 형식과 의심 표현을 찾는 보조 절차입니다. 사실 보존·말투·활용 가능성은 사람이 원문과 대조해 최종 평가해야 합니다.\n\n| 입력 | 시간 | 상품 정보 신호 | 의심 성능 표현 | 의심 숫자 | 문체·구성 검토 후보 | 사람 평가 |\n| --- | ---: | ---: | --- | --- | --- | --- |\n${rows}\n\n## 사람 평가 기준\n\n각 결과를 입력과 대조해 사실 보존, 요청한 말투 반영, 소상공인이 수정해 쓸 수 있는 정도를 1–5점으로 기록합니다. 자동 검사 통과를 사실 검증 완료로 간주하지 않습니다.\n`;
 }
 
 const results:EvaluationResult[]=[];

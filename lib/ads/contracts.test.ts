@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {adRequestSchema,adResponseSchema,extractOpenAIText,firstValidationMessage,normalizeAdResponseCandidate} from './contracts';
+import {AD_INSTRUCTIONS,AD_PROMPT_VERSION,adRequestSchema,adResponseSchema,extractOpenAIText,firstValidationMessage,normalizeAdResponseCandidate} from './contracts';
 
 const request={
  version:1 as const,storeName:'오후옷장',
@@ -31,4 +31,12 @@ test('model hashtag markers and spaces are normalized before validation',()=>{
  const normalized=normalizeAdResponseCandidate(candidate);
  const parsed=adResponseSchema.parse(normalized);
  assert.deepEqual(parsed.drafts[0].hashtags,['오후옷장','스트라이프티','반팔티']);
+});
+
+test('the prompt gives guidance for every angle, tone, purpose and closing line the form can send',()=>{
+ for(const value of ['product_facts','styling','daily_scene','friendly','minimal','energetic','product_intro','new_arrival','promotion','view_product','visit_store','inquire']){
+  assert.ok(AD_INSTRUCTIONS.includes(value),`프롬프트에 ${value} 안내가 없습니다.`);
+ }
+ assert.ok(AD_INSTRUCTIONS.includes('additionalRequest'));
+ assert.notEqual(AD_PROMPT_VERSION,'2026-09-16.1');
 });
