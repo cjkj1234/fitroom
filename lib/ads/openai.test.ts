@@ -47,3 +47,13 @@ test('invalid structured content exposes validation metadata without response co
   return true;
  });
 });
+
+test('fields the seller left empty are not sent to the model as null',async()=>{
+ let captured:RequestInit|undefined;
+ const fetcher=async(_input:string|URL|Request,init?:RequestInit)=>{captured=init;return new Response(JSON.stringify({output:[{content:[{type:'output_text',text:JSON.stringify(result)}]}]}),{status:200,headers:{'Content-Type':'application/json'}});};
+ await generateAdDrafts(request,'test-key',fetcher);
+ const sent=String(JSON.parse(String(captured?.body)).input);
+ assert.equal(sent.includes('null'),false);
+ assert.equal(sent.includes('"material"'),false);
+ assert.equal(sent.includes('스트라이프 반팔 티셔츠'),true);
+});

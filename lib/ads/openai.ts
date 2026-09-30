@@ -11,6 +11,12 @@ export class AdGenerationError extends Error{
 export const AD_TIMEOUT_MS=45_000;
 export const AD_REASONING_EFFORT='low';
 
+// 비어 있는 항목(null)을 그대로 보내면 모델이 '소재 정보는 제공되지 않았습니다'처럼 없다는 사실을 광고 문구에 쓴다. 입력하지 않은 항목은 아예 빼서 보낸다.
+export function requestForModel(request:AdRequest){
+ const present=(source:Record<string,unknown>)=>Object.fromEntries(Object.entries(source).filter(([,value])=>value!==null));
+ return {...request,product:present(request.product),campaign:present(request.campaign)};
+}
+
 type Fetcher=(input:string|URL|Request,init?:RequestInit)=>Promise<Response>;
 
 export async function generateAdDrafts(request:AdRequest,apiKey:string,fetcher:Fetcher=fetch){
@@ -26,7 +32,7 @@ export async function generateAdDrafts(request:AdRequest,apiKey:string,fetcher:F
     store:false,
     reasoning:{effort:AD_REASONING_EFFORT},
     instructions:AD_INSTRUCTIONS,
-    input:`아래 JSON 데이터로 인스타그램 게시물 광고 문구를 작성하세요.\n${JSON.stringify(request)}`,
+    input:`아래 JSON 데이터로 인스타그램 게시물 광고 문구를 작성하세요.\n${JSON.stringify(requestForModel(request))}`,
     text:{format:{type:'json_schema',name:'fitroom_ad_drafts',strict:true,schema:openAIAdResponseSchema}},
    }),
   });
