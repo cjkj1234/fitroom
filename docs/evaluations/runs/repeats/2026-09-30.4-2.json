@@ -1,0 +1,410 @@
+{
+  "createdAt": "2026-09-30T06:21:10.742Z",
+  "invalidInputChecks": [
+    {
+      "id": "invalid-empty-name",
+      "rejected": true
+    },
+    {
+      "id": "invalid-discount-range",
+      "rejected": true
+    },
+    {
+      "id": "invalid-feature-length",
+      "rejected": true
+    },
+    {
+      "id": "invalid-promotion-missing-discount",
+      "rejected": true
+    }
+  ],
+  "generationFailures": [],
+  "results": [
+    {
+      "id": "normal-top",
+      "description": "필수 정보와 판매가가 있는 상의",
+      "model": "gpt-5-mini",
+      "promptVersion": "2026-09-30.4",
+      "durationMs": 5790,
+      "request": {
+        "version": 1,
+        "storeName": "오후옷장",
+        "product": {
+          "name": "스트라이프 반팔 티셔츠",
+          "category": "top",
+          "color": "화이트·네이비",
+          "features": [
+            "가로 스트라이프",
+            "라운드넥",
+            "반팔"
+          ],
+          "material": null,
+          "priceKrw": 29000,
+          "discountPercent": null
+        },
+        "campaign": {
+          "channel": "instagram_post",
+          "audience": "일상 캐주얼 코디를 찾는 20~30대",
+          "tone": "friendly",
+          "purpose": "product_intro",
+          "cta": "view_product",
+          "additionalRequest": "과장 없이 짧고 친근하게 써 주세요."
+        }
+      },
+      "drafts": [
+        {
+          "angle": "product_facts",
+          "headline": "가로 스트라이프 반팔 티셔츠 소개",
+          "body": "가로 스트라이프 패턴의 스트라이프 반팔 티셔츠예요. 라운드넥과 반팔 디자인으로 화이트·네이비 두 가지 색상으로 준비되어 있습니다. 판매가는 29,000원이고 일상용 캐주얼 탑으로 확인해 보세요.",
+          "cta": "상품 보러가기",
+          "hashtags": [
+            "스트라이프",
+            "반팔티",
+            "라운드넥",
+            "화이트네이비",
+            "오후옷장"
+          ]
+        },
+        {
+          "angle": "styling",
+          "headline": "네이비 스트라이프로 만든 캐주얼 룩",
+          "body": "네이비 스트라이프 반팔 티셔츠에 밝은 데님을 매치해 보세요. 라운드넥이라 단추 없는 재킷이나 가벼운 셔츠 안에 레이어드해도 좋습니다. 색상은 화이트·네이비로 여러 조합을 시도해 보세요.",
+          "cta": "코디 확인하기",
+          "hashtags": [
+            "캐주얼코디",
+            "데님룩",
+            "레이어드",
+            "화이트네이비",
+            "오후옷장"
+          ]
+        },
+        {
+          "angle": "daily_scene",
+          "headline": "주말 나들이에 어울리는 반팔티",
+          "body": "주말 가벼운 외출이나 카페 산책에 스트라이프 반팔 티셔츠를 입어 보세요. 반팔과 라운드넥 디자인이라 간편하게 입기 좋고 화이트·네이비 색상으로 선택할 수 있습니다. 상세 내용은 상품 페이지에서 확인하세요.",
+          "cta": "상품 상세보기",
+          "hashtags": [
+            "주말룩",
+            "카페룩",
+            "일상룩",
+            "스트라이프",
+            "오후옷장"
+          ]
+        }
+      ],
+      "automaticReview": {
+        "schemaValid": true,
+        "productSignalCount": 5,
+        "unsupportedClaimCandidates": [
+          "편하게 입"
+        ],
+        "unsupportedNumberCandidates": [],
+        "causalClaimCandidates": [],
+        "needsManualReview": true,
+        "styleReview": {
+          "requestEchoCandidates": [],
+          "purposeMissingDrafts": [],
+          "repeatedSentences": [],
+          "repeatedCtas": [],
+          "disclosureCandidates": [],
+          "aiPatternCandidates": [],
+          "repeatedOpenings": []
+        },
+        "needsStyleReview": false
+      },
+      "manualReview": {
+        "factPreservation": null,
+        "toneMatch": null,
+        "usefulness": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "normal-hat-minimal",
+      "description": "소재와 가격이 없는 모자",
+      "model": "gpt-5-mini",
+      "promptVersion": "2026-09-30.4",
+      "durationMs": 6346,
+      "request": {
+        "version": 1,
+        "storeName": "오후옷장",
+        "product": {
+          "name": "베이지 볼캡",
+          "category": "hat",
+          "color": "베이지",
+          "features": [
+            "볼캡 형태"
+          ],
+          "material": null,
+          "priceKrw": null,
+          "discountPercent": null
+        },
+        "campaign": {
+          "channel": "instagram_post",
+          "audience": "일상 캐주얼 코디를 찾는 20~30대",
+          "tone": "minimal",
+          "purpose": "product_intro",
+          "cta": "inquire",
+          "additionalRequest": "과장 없이 짧고 담백하게 써 주세요."
+        }
+      },
+      "drafts": [
+        {
+          "angle": "product_facts",
+          "headline": "심플한 베이지 볼캡 소개",
+          "body": "베이지 색상의 볼캡 형태 모자입니다. 디자인은 심플하고 기본에 충실한 형태입니다. 소재 정보는 제공되지 않았습니다. 오후옷장에서 확인하세요.",
+          "cta": "제품 문의하기",
+          "hashtags": [
+            "오후옷장",
+            "베이지볼캡",
+            "볼캡",
+            "일상코디"
+          ]
+        },
+        {
+          "angle": "styling",
+          "headline": "데일리 캐주얼에 어울리는 캡",
+          "body": "베이지 볼캡을 셔츠나 맨투맨과 매치해 보세요. 톤을 맞춘 액세서리와 어울립니다. 간결한 색감으로 다양한 캐주얼 룩에 적용하기 좋습니다.",
+          "cta": "자세한 문의",
+          "hashtags": [
+            "베이지볼캡",
+            "캐주얼코디",
+            "오후옷장",
+            "20대30대"
+          ]
+        },
+        {
+          "angle": "daily_scene",
+          "headline": "산책과 카페 외출에 잘 어울려요",
+          "body": "가벼운 외출이나 카페 인스타그램 촬영에 베이지 볼캡을 써 보세요. 평소 바람막이·청바지와 매치하기 좋습니다. 필요한 정보는 문의해 주세요.",
+          "cta": "문의로 더 보기",
+          "hashtags": [
+            "일상룩",
+            "베이지볼캡",
+            "오후옷장",
+            "외출룩"
+          ]
+        }
+      ],
+      "automaticReview": {
+        "schemaValid": true,
+        "productSignalCount": 3,
+        "unsupportedClaimCandidates": [],
+        "unsupportedNumberCandidates": [],
+        "causalClaimCandidates": [],
+        "needsManualReview": false,
+        "styleReview": {
+          "requestEchoCandidates": [],
+          "purposeMissingDrafts": [],
+          "repeatedSentences": [],
+          "repeatedCtas": [],
+          "disclosureCandidates": [
+            "제공되지 않"
+          ],
+          "aiPatternCandidates": [],
+          "repeatedOpenings": []
+        },
+        "needsStyleReview": true
+      },
+      "manualReview": {
+        "factPreservation": null,
+        "toneMatch": null,
+        "usefulness": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "normal-bottom",
+      "description": "판매자가 소재를 입력한 신상품 하의",
+      "model": "gpt-5-mini",
+      "promptVersion": "2026-09-30.4",
+      "durationMs": 6115,
+      "request": {
+        "version": 1,
+        "storeName": "오후옷장",
+        "product": {
+          "name": "블랙 와이드 팬츠",
+          "category": "bottom",
+          "color": "블랙",
+          "features": [
+            "와이드 실루엣",
+            "앞주머니"
+          ],
+          "material": "면 100%",
+          "priceKrw": 39000,
+          "discountPercent": null
+        },
+        "campaign": {
+          "channel": "instagram_post",
+          "audience": "일상 캐주얼 코디를 찾는 20~30대",
+          "tone": "friendly",
+          "purpose": "new_arrival",
+          "cta": "visit_store",
+          "additionalRequest": "과장 없이 짧고 친근하게 써 주세요."
+        }
+      },
+      "drafts": [
+        {
+          "angle": "product_facts",
+          "headline": "새로 들어온 블랙 와이드 팬츠",
+          "body": "오후옷장에 새로 들어온 블랙 와이드 팬츠예요. 면 100% 소재에 와이드 실루엣과 앞주머니가 특징인 바지입니다. 블랙 컬러로 다양한 상의와 함께하기 좋습니다. 매장에 준비해두었어요, 편하게 둘러보세요.",
+          "cta": "매장 방문하기",
+          "hashtags": [
+            "블랙와이드팬츠",
+            "면100",
+            "와이드팬츠",
+            "앞주머니",
+            "오후옷장"
+          ]
+        },
+        {
+          "angle": "styling",
+          "headline": "블랙 와이드 팬츠 코디 제안",
+          "body": "신상품 블랙 와이드 팬츠는 심플한 티셔츠나 셔츠와 매치해 보세요. 와이드 실루엣이 눈에 띄므로 슬림한 상의를 더해도 좋고, 앞주머니가 있는 디자인이라 캐주얼한 무드에 잘 어울립니다. 매장으로 오셔서 직접 스타일링해 보세요.",
+          "cta": "오후옷장 매장으로 오세요",
+          "hashtags": [
+            "블랙와이드팬츠",
+            "와이드팬츠코디",
+            "면100",
+            "캐주얼",
+            "오후옷장"
+          ]
+        },
+        {
+          "angle": "daily_scene",
+          "headline": "일상에 어울리는 새 팬츠",
+          "body": "출근 전이나 친구 만나러 갈 때 새로 들어온 블랙 와이드 팬츠를 입어 보세요. 면 100% 소재와 앞주머니가 있는 와이드 실루엣으로 데일리 캐주얼에 활용하기 좋습니다. 매장에서 실제 핏을 확인해 보세요.",
+          "cta": "매장 방문해 확인하기",
+          "hashtags": [
+            "데일리팬츠",
+            "블랙와이드팬츠",
+            "면100",
+            "앞주머니",
+            "오후옷장"
+          ]
+        }
+      ],
+      "automaticReview": {
+        "schemaValid": true,
+        "productSignalCount": 4,
+        "unsupportedClaimCandidates": [],
+        "unsupportedNumberCandidates": [],
+        "causalClaimCandidates": [],
+        "needsManualReview": false,
+        "styleReview": {
+          "requestEchoCandidates": [],
+          "purposeMissingDrafts": [],
+          "repeatedSentences": [],
+          "repeatedCtas": [],
+          "disclosureCandidates": [],
+          "aiPatternCandidates": [],
+          "repeatedOpenings": []
+        },
+        "needsStyleReview": false
+      },
+      "manualReview": {
+        "factPreservation": null,
+        "toneMatch": null,
+        "usefulness": null,
+        "notes": ""
+      }
+    },
+    {
+      "id": "normal-promotion",
+      "description": "확인한 할인율과 실제 판매가가 있는 할인 홍보",
+      "model": "gpt-5-mini",
+      "promptVersion": "2026-09-30.4",
+      "durationMs": 7211,
+      "request": {
+        "version": 1,
+        "storeName": "오후옷장",
+        "product": {
+          "name": "스트라이프 반팔 티셔츠",
+          "category": "top",
+          "color": "화이트·네이비",
+          "features": [
+            "가로 스트라이프",
+            "라운드넥",
+            "반팔"
+          ],
+          "material": null,
+          "priceKrw": 26100,
+          "discountPercent": 10
+        },
+        "campaign": {
+          "channel": "instagram_post",
+          "audience": "일상 캐주얼 코디를 찾는 20~30대",
+          "tone": "energetic",
+          "purpose": "promotion",
+          "cta": "view_product",
+          "additionalRequest": "활기차게 쓰되 과장은 피해 주세요."
+        }
+      },
+      "drafts": [
+        {
+          "angle": "product_facts",
+          "headline": "스트라이프 반팔 티셔츠, 화이트·네이비",
+          "body": "가로 스트라이프 패턴의 라운드넥 반팔 티셔츠입니다. 화이트·네이비 컬러로 구성되어 있으며 현재 판매가는 26,100원이고 10% 할인 적용 상품입니다. 심플한 패턴과 기본형 실루엣을 확인해 보세요! 제품 상세는 게시물에서 확인할 수 있습니다.",
+          "cta": "상품 보러가기",
+          "hashtags": [
+            "스트라이프티",
+            "반팔티",
+            "라운드넥",
+            "화이트네이비",
+            "오후옷장"
+          ]
+        },
+        {
+          "angle": "styling",
+          "headline": "캐주얼 코디의 포인트, 스트라이프 티",
+          "body": "청바지나 코튼 팬츠와 매치하면 가로 스트라이프가 포인트가 됩니다. 라운드넥과 반팔 디자인이라 레이어드하거나 단독으로 활용하기 좋아요! 현재 가격은 26,100원이며 10% 할인 중입니다. 스타일 샷을 보려면 상세 페이지를 확인하세요!",
+          "cta": "지금 제품 확인하기",
+          "hashtags": [
+            "캐주얼코디",
+            "스트라이프코디",
+            "데일리룩",
+            "20대패션",
+            "오후옷장"
+          ]
+        },
+        {
+          "angle": "daily_scene",
+          "headline": "주말 외출에 어울리는 스트라이프 티",
+          "body": "산책이나 카페 나들이에 어울리는 화이트·네이비 스트라이프 반팔 티셔츠입니다. 라운드넥과 반팔 디자인으로 가볍게 걸치기 좋습니다. 판매가는 26,100원이며 10% 할인 적용 중이니 제품 페이지에서 자세히 확인해 보세요!",
+          "cta": "제품 페이지 확인",
+          "hashtags": [
+            "주말룩",
+            "카페룩",
+            "데일리반팔",
+            "30대패션",
+            "오후옷장"
+          ]
+        }
+      ],
+      "automaticReview": {
+        "schemaValid": true,
+        "productSignalCount": 5,
+        "unsupportedClaimCandidates": [],
+        "unsupportedNumberCandidates": [],
+        "causalClaimCandidates": [],
+        "needsManualReview": false,
+        "styleReview": {
+          "requestEchoCandidates": [],
+          "purposeMissingDrafts": [],
+          "repeatedSentences": [],
+          "repeatedCtas": [],
+          "disclosureCandidates": [],
+          "aiPatternCandidates": [],
+          "repeatedOpenings": []
+        },
+        "needsStyleReview": false
+      },
+      "manualReview": {
+        "factPreservation": null,
+        "toneMatch": null,
+        "usefulness": null,
+        "notes": ""
+      }
+    }
+  ]
+}
