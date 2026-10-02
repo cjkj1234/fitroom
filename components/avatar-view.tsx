@@ -4,9 +4,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { RotateCcw, Plus, Minus, Move, LoaderCircle, Shirt } from 'lucide-react';
+import { RotateCcw, Plus, Minus, Move, LoaderCircle, Shirt, Ruler } from 'lucide-react';
 import type { BodyProfile,Outfit,Product } from '@/lib/wardrobe/types';
-import { makeGarment,disposeGroup } from '@/lib/wardrobe/geometry';
+import { makeGarment,disposeGroup,FIT_LEGEND } from '@/lib/wardrobe/geometry';
+import { morphWeights } from '@/lib/wardrobe/body-shape';
 
 function addStoreEnvironment(scene:THREE.Scene){
  const room=new THREE.Group();room.name='virtual-store-room';
@@ -23,19 +24,24 @@ function addStoreEnvironment(scene:THREE.Scene){
  scene.add(room);
 }
 
+// 핏 보기 켜짐 상태는 매장을 옮겨도(아바타 화면이 다시 만들어져도) 이 탭에서 유지한다. 저장이 막힌 환경에서는 꺼진 상태로 시작한다.
+const FIT_VIEW_KEY='fitroom.fitView.v1';
+function readFitView(){try{return typeof window!=='undefined'&&window.sessionStorage.getItem(FIT_VIEW_KEY)==='1';}catch{return false;}}
+function writeFitView(on:boolean){try{window.sessionStorage.setItem(FIT_VIEW_KEY,on?'1':'0');}catch{}}
+
 type StageApi={scene:THREE.Scene;camera:THREE.PerspectiveCamera;controls:OrbitControls;avatar:THREE.Group;clothes:THREE.Group;render:()=>void;clearHover:()=>void};
 
 export default function AvatarView({body,outfit,products,storeName,onDrop,onGarmentClick}:{body:BodyProfile;outfit:Outfit;products:Product[];storeName:string;onDrop:(id:string)=>void;onGarmentClick?:(id:string)=>void}){
  const host=useRef<HTMLDivElement>(null),api=useRef<StageApi|null>(null);
- const latest=useRef({body,outfit,products});
+ const latest=useRef({body,outfit,products,fitView:false});
  const clickRef=useRef(onGarmentClick),textureCache=useRef(new Map<string,THREE.Texture>()),textureLoading=useRef(new Set<string>());
- const [status,setStatus]=useState('loading'),[drag,setDrag]=useState(false),[view,setView]=useState('정면'),[hoverName,setHoverName]=useState<string|null>(null);
- function update(){const a=api.current;if(!a)return;const {body,outfit,products}=latest.current;
+ const [status,setStatus]=useState('loading'),[drag,setDrag]=useState(false),[view,setView]=useState('정면'),[hoverName,setHoverName]=useState<string|null>(null),[fitView,setFitView]=useState(readFitView);
+ function update(){const a=api.current;if(!a)return;const {body,outfit,products,fitView}=latest.current;
    const scale=body.measurements.height/175;a.avatar.scale.setScalar(scale);
-   a.avatar.traverse(o=>{if(o instanceof THREE.Mesh && o.morphTargetDictionary && o.morphTargetInfluences){const b=body.measurements;const weights:Record<string,number>={chest:(b.chest/scale-96)/50,waist:(b.waist/scale-80)/60,hips:(b.hips/scale-98)/55,shoulders:(b.shoulders/scale-43)/10,armLength:(b.armLength/scale-59)/15,legLength:(b.legLength/scale-105)/20,head:(b.head/scale-57)/13};for(const [name,index]of Object.entries(o.morphTargetDictionary))o.morphTargetInfluences[index]=Math.max(-1,Math.min(1,weights[name]??0));}});
+   a.avatar.traverse(o=>{if(o instanceof THREE.Mesh && o.morphTargetDictionary && o.morphTargetInfluences){const weights:Record<string,number>=morphWeights(body);for(const [name,index]of Object.entries(o.morphTargetDictionary))o.morphTargetInfluences[index]=weights[name]??0;}});
    let minY=Infinity,maxY=-Infinity;const vertex=new THREE.Vector3();a.avatar.traverse(o=>{if(o instanceof THREE.Mesh){const positions=o.geometry.getAttribute('position');for(let i=0;i<positions.count;i++){o.getVertexPosition(i,vertex);minY=Math.min(minY,vertex.y);maxY=Math.max(maxY,vertex.y);}}});if(Number.isFinite(minY)&&maxY>minY){a.avatar.scale.y=body.measurements.height/100/(maxY-minY);a.avatar.position.y=-minY*a.avatar.scale.y;}
    while(a.clothes.children.length){const item=a.clothes.children[0];a.clothes.remove(item);disposeGroup(item);}
-   Object.values(outfit).forEach(item=>{const p=products.find(product=>product.id===item.productId);const s=p?.sizes.find(candidate=>candidate.label===item.size);if(p&&s)a.clothes.add(makeGarment(p,s,body,false,{frontTexture:textureFor(p)}));});a.clearHover();a.render();
+   Object.values(outfit).forEach(item=>{const p=products.find(product=>product.id===item.productId);const s=p?.sizes.find(candidate=>candidate.label===item.size);if(p&&s)a.clothes.add(makeGarment(p,s,body,false,{frontTexture:textureFor(p),fitView}));});a.clearHover();a.render();
  }
  // 평면 사진에서 만든 앞면 텍스처는 처음 쓸 때 불러와 캐시하고, 로드가 끝나면 옷을 다시 만든다. 그 전에는 색만으로 먼저 보여 준다.
  function textureFor(product:Product){
@@ -88,16 +94,17 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
    return()=>{disposed=true;observer.disconnect();dom.removeEventListener('pointerdown',onDown);dom.removeEventListener('pointerup',onUp);dom.removeEventListener('pointermove',onMove);dom.removeEventListener('pointerleave',onLeave);controls.dispose();disposeGroup(scene);textureCache.current.forEach(texture=>texture.dispose());textureCache.current.clear();environment.dispose();pmrem.dispose();renderer.dispose();renderer.domElement.remove();api.current=null;};
  },[]);
  useEffect(()=>{clickRef.current=onGarmentClick;});
- useEffect(()=>{latest.current={body,outfit,products};update();},[body,outfit,products]);
+ useEffect(()=>{latest.current={body,outfit,products,fitView};update();},[body,outfit,products,fitView]);
  function angle(label:string,r:number){const a=api.current;if(!a)return;const d=a.camera.position.distanceTo(a.controls.target);a.camera.position.set(Math.sin(r)*d,1.05,Math.cos(r)*d);a.controls.update();setView(label);a.render();}
  function zoom(f:number){const a=api.current;if(!a)return;const v=a.camera.position.clone().sub(a.controls.target);v.setLength(Math.max(2,Math.min(5,v.length()*f)));a.camera.position.copy(a.controls.target).add(v);a.controls.update();a.render();}
  return <div className={`avatar-stage ${drag?'is-dragging':''}`} onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setDrag(false);}} onDrop={e=>{e.preventDefault();setDrag(false);onDrop(e.dataTransfer.getData('text/plain'));}}>
-   <div className="stage-top"><span className="tiny-label">{storeName} · FITTING ROOM</span><span className="stage-badge">3D · 가상 매장</span></div>
+   <div className="stage-top"><span className="tiny-label">{storeName} · FITTING ROOM</span><div className="stage-top-actions"><span className="stage-badge">3D · 가상 매장</span><button type="button" className={`fit-toggle ${fitView?'active':''}`} aria-pressed={fitView} onClick={()=>setFitView(on=>{writeFitView(!on);return !on;})}><Ruler size={13}/>핏 보기</button></div></div>
    <div className="stage-caption"><h2>매장에서 고른 옷을,<br/>내 아바타에게.</h2><p>상품을 누르거나 끌어다 놓아 입어보고, 입은 옷을 누르면 벗어요.</p></div>
    <div ref={host} className="avatar-canvas" role="img" aria-label="마우스로 회전할 수 있는 내 체형의 3D 아바타. 입은 옷을 누르면 벗을 수 있어요."/>
    {status==='loading'&&<div className="stage-loading"><LoaderCircle className="spin"/> 아바타를 준비하고 있어요</div>}
    {status==='error'&&<div className="stage-loading error">3D 화면을 불러오지 못했어요.<br/>WebGL을 지원하는 브라우저에서 새로고침해 주세요.<br/>상품과 실측 정보는 계속 확인할 수 있어요.</div>}
    {drag&&<div className="drop-message">여기에 놓아 입어보기</div>}
+   {fitView&&<div className="fit-legend" role="note" aria-label="핏 보기 색 설명"><strong>옷 둘레 − 몸 둘레</strong><ul>{FIT_LEGEND.map(item=><li key={item.label}><i style={{background:item.color}}/>{item.label}<small>{item.range}</small></li>)}</ul><p>{Object.keys(outfit).length?'상품 실측이 있는 높이(상의 가슴·하의 엉덩이·모자 머리둘레)만 3D 아바타의 몸 둘레와 비교해 칠한 참고 색이에요. 실제 착용감과 다를 수 있고, 수치는 아래 실측 비교를 보세요.':'옷을 입히면 높이별 여유가 색으로 보여요.'}</p></div>}
    {hoverName&&!drag&&<div className="garment-hint" role="status"><Shirt size={13}/>{hoverName} · 눌러서 벗기</div>}
    <div className="zoom-controls"><button aria-label="확대" onClick={()=>zoom(.85)}><Plus size={17}/></button><button aria-label="축소" onClick={()=>zoom(1.15)}><Minus size={17}/></button><button aria-label="시점 초기화" onClick={()=>angle('정면',0)}><RotateCcw size={16}/></button></div>
    <div className="stage-bottom"><span className="gesture-hint desktop"><Move size={13}/> 드래그로 회전 · 스크롤로 확대</span><span className="gesture-hint mobile"><Move size={13}/> 손가락으로 회전 · 두 손가락으로 확대</span><div className="view-buttons">{[['정면',0],['옆면',Math.PI/2],['후면',Math.PI]].map(([label,r])=><button key={label} className={view===label?'active':''} onClick={()=>angle(String(label),Number(r))}>{label}</button>)}</div></div>

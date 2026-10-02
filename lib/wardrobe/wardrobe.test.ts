@@ -45,9 +45,33 @@ test('storage hydration strips unrecognized fields, including photo payloads',()
  const b={...cloneBody(DEFAULT_BODY),photo:'secret',measurements:{...DEFAULT_BODY.measurements,photo:'secret'}};
  assert.equal(JSON.stringify(parseStoredBody(JSON.stringify(b))).includes('secret'),false);
 });
-test('3D garment dimensions do not expand when body girth increases',()=>{
- const p=PRODUCTS[0],a=makeGarment(p,p.sizes[1],DEFAULT_BODY),b=makeGarment(p,p.sizes[1],setMeasurement(DEFAULT_BODY,'chest',140,'manual'));
- const aa=new THREE.Box3().setFromObject(a).getSize(new THREE.Vector3()),bb=new THREE.Box3().setFromObject(b).getSize(new THREE.Vector3());assert.ok(aa.distanceTo(bb)<1e-8);disposeGroup(a);disposeGroup(b);
+test('garment size stays the product size: only where a larger body would poke through is the 3D shell pushed out',()=>{
+ const p=PRODUCTS[0],size=p.sizes[1];
+ const base=makeGarment(p,size,DEFAULT_BODY),big=makeGarment(p,size,setMeasurement(DEFAULT_BODY,'chest',140,'manual'));
+ const width=(g:THREE.Group)=>new THREE.Box3().setFromObject(g).getSize(new THREE.Vector3()).x;
+ assert.ok(width(big)>width(base),'몸이 옷보다 크면 그 높이의 옷 껍질을 몸 바깥으로 민다');
+ // 핏 보기의 여유는 옷 실측 둘레에서 3D 몸 둘레를 뺀 값이라 가슴이 44cm 커지면 그만큼 줄어든다(모프 가중치 0.88).
+ const gain=base.userData.fitEase.chest-big.userData.fitEase.chest;
+ assert.ok(Math.abs(gain-44)<3,`가슴 여유 감소 ${gain}cm`);
+ // 숫자 핏 카드는 3D 껍질과 무관하게 상품 실측과 입력 치수로만 계산한다.
+ assert.deepEqual(estimateFit(DEFAULT_BODY,p,size).map(item=>item.label),estimateFit(setMeasurement(DEFAULT_BODY,'chest',140,'manual'),p,size).map(item=>item.label));
+ disposeGroup(base);disposeGroup(big);
+});
+test('fit view paints tight rings red, roomy rings green or blue, and leaves uncertain parts grey',()=>{
+ const tee=PRODUCTS.find(item=>item.slot==='top')!;
+ const chestColor=(chestFlat:number)=>{
+  const g=makeGarment(tee,{...tee.sizes[0],chestFlat},DEFAULT_BODY,false,{fitView:true}),mesh=g.children[0] as THREE.Mesh;
+  const position=mesh.geometry.getAttribute('position'),color=mesh.geometry.getAttribute('color');
+  let best=0;for(let i=0;i<position.count;i++)if(Math.abs(position.getY(i)-1.3)<Math.abs(position.getY(best)-1.3))best=i;
+  const out={r:color.getX(best),g:color.getY(best),b:color.getZ(best),ease:g.userData.fitEase.chest as number};disposeGroup(g);return out;
+ };
+ const tight=chestColor(40),roomy=chestColor(66);
+ assert.ok(tight.ease<0&&tight.r>tight.g&&tight.r>tight.b,`작은 옷은 빨강 (${JSON.stringify(tight)})`);
+ assert.ok(roomy.ease>12&&roomy.b>roomy.r,`큰 옷은 파랑 쪽 (${JSON.stringify(roomy)})`);
+ const plain=makeGarment(tee,tee.sizes[0],DEFAULT_BODY),mesh=plain.children[0] as THREE.Mesh;
+ assert.equal(mesh.geometry.getAttribute('color'),undefined,'핏 보기를 끄면 정점 색이 없다');disposeGroup(plain);
+ const cap=PRODUCTS.find(item=>item.slot==='hat'&&item.adjustableHat);
+ if(cap){const g=makeGarment(cap,cap.sizes[0],DEFAULT_BODY,false,{fitView:true});assert.equal(g.userData.fitEase.head,undefined,'조절형 모자는 판단 보류');disposeGroup(g);}
 });
 test('each garment group is named after its product so a 3D click can identify it',()=>{
  for(const p of PRODUCTS){const g=makeGarment(p,p.sizes[0],DEFAULT_BODY);assert.equal(g.name,p.id);disposeGroup(g);}

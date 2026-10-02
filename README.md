@@ -104,8 +104,10 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 - 판매자 상품의 가격·재고·실측·구매 링크 등록, 게시/게시 내리기, 같은 브라우저의 이용자 옷장 연동.
 - 계정 동기화한 게시 매장을 다른 브라우저·기기의 이용자 상점 거리에서도 조회하고 판매자 진열 배치로 입장.
 - MakeHuman CC0 자산 기반 3D 아바타: 회전·확대·시점 전환, 키와 체형 변형. 받침대와 스튜디오 반사광으로 음영을 다듬음.
-- 의상은 판매자 실측에서 직접 생성한 절차형 3D: 곡선 실루엣과 파인 목선·카라·어깨 캡이 있는 상의, 허리밴드·벨트 고리·밑단 스티치가 있는 하의, 6패널 솔기와 휘어진 챙의 모자. 원단 물리 시뮬레이션이나 상품 사진 기반 재구성이 아닌 참고 표현이며 치수는 체형에 따라 늘어나지 않음.
+- 의상은 판매자 실측에서 직접 생성한 절차형 3D: 곡선 실루엣과 파인 목선·카라·어깨 캡이 있는 상의, 허리밴드·벨트 고리·밑단 스티치가 있는 하의, 6패널 솔기와 휘어진 챙의 모자. 원단 물리 시뮬레이션이나 상품 사진 기반 재구성이 아닌 참고 표현이다. 옷 치수는 상품 실측 그대로이고, 아바타 체형이 옷보다 큰 높이만 몸 단면 바깥으로 밀어 몸이 옷을 뚫고 나오지 않게 한다.
 - 옷은 마네킹 GLB를 높이별로 실측한 중심선(몸통의 앞쪽 치우침, A자로 벌어진 다리, 머리 비율)에 맞춰 놓아 몸이 옷을 뚫고 나오지 않음. `lib/wardrobe/mannequin-fit.test.ts`가 마네킹 정점에서 옷 표면으로 광선을 쏴 노출 비율(상의·하의·모자별 허용치)을 검사. 미리 만든 상품 썸네일도 같은 형태로 다시 렌더링.
+- 체형 변화 대응: `scripts/measure-mannequin.ts`가 마네킹을 2cm 간격으로 잘라 몸통·다리 단면(둘레·반폭·중심)과 체형 모프 7종의 변화량을 `lib/wardrobe/mannequin-sections.ts`에 기록한다. 중립 단면 둘레는 보정 기준(가슴 96·허리 80·엉덩이 98·머리 57cm)과 1cm 이내로 맞는다. `lib/wardrobe/body-shape.ts`가 이 표로 현재 체형의 몸 단면을 계산하고, 옷 중심선·골반·다리 하한도 모프로 변한 만큼 옮긴다. `lib/wardrobe/body-fit.test.ts`가 실제 모프를 적용한 마네킹(160 마름·175 큰 체형·185 큰 체형·168 혼합 입력)에서 노출 비율과 단면 표 오차를 검사한다.
+- 핏 보기: 무대 위 `핏 보기`를 켜면 상품 실측이 있는 높이(상의 가슴·하의 엉덩이·모자 머리둘레)를 옷 둘레 − 3D 몸 둘레(cm)로 칠한다(빨강 끼임, 노랑 딱 맞음, 초록 보통, 파랑 넉넉함). 바지 허리·조절형 모자·다리 굵기·상의 밑단처럼 실측이 없거나 3D 모양을 위해 가정한 부분은 회색(판단 보류)이다. 숫자 핏 카드와 같은 기준의 참고 표시이며 실제 착용감을 검증하지 않았다.
 - 간편 설정·상세 치수·정면/측면 사진 추정. 사진은 브라우저 Worker에서 MediaPipe로 분석합니다.
 - 원본 사진은 메모리에서만 사용하며 서버 업로드 및 저장이 없습니다. 적용한 치수만 `fitroom.body.v1` 키로 이 브라우저에 저장합니다.
 - 사진 추정은 사용자 확인 후 적용합니다. 기존 직접 입력 치수는 보존합니다.
@@ -141,6 +143,7 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 - `lib/ads/evaluations.ts`: 원본 생성 근거와 사람 평가의 브라우저 저장·JSON 내보내기 계약
 - `lib/ads/contracts.test.ts`: 할인 예외, 출력 관점 중복, Responses API 텍스트 추출 검사
 - `components/avatar-view.tsx`, `lib/wardrobe/geometry.ts`: 3D 모델 및 상품 실측 기반 참고 의상
+- `lib/wardrobe/body-shape.ts`, `lib/wardrobe/mannequin-sections.ts`, `lib/wardrobe/mannequin-mesh.ts`: 체형별 몸 단면 계산, 마네킹 단면 표(생성 파일), Node용 마네킹 읽기·단면 측정
 - `components/body-editor.tsx`, `lib/wardrobe/photo-worker.ts`: 체형 설정 및 기기 내 사진 추정
 - `lib/wardrobe/body.ts`, `fit.ts`, `photo-estimate.ts`: 검증 가능한 계산과 저장 데이터 처리
 - `lib/wardrobe/wardrobe.test.ts`: 변환·누락·교체·저장·사진 후처리·상품 및 조작 입력 검증

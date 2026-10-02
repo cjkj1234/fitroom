@@ -233,3 +233,17 @@
 .seller-texture-note{margin:0;font-size:12px;line-height:1.55;color:#8a6d3b}
 .seller-form-grid .seller-texture-field{flex-direction:row;align-items:center;text-align:left}
 .seller-form-grid .seller-texture-field span{align-items:flex-start}
+/* 핏 보기: 옷 몸판을 여유(옷 둘레 − 몸 둘레) 색으로 칠하는 토글과 범례 */
+.stage-top-actions{display:flex;align-items:center;gap:7px}
+.fit-toggle{display:flex;align-items:center;gap:5px;white-space:nowrap;flex:none;font-size:12px;color:#555;background:#ffffffc8;border:1px solid #d7d7d7;border-radius:20px;padding:4px 10px;cursor:pointer;pointer-events:auto}
+.fit-toggle:hover{border-color:#a9a9a9}
+.fit-toggle.active{background:#383838;border-color:#383838;color:#fff}
+.fit-legend{position:absolute;left:23px;right:23px;bottom:60px;z-index:2;background:#ffffffeb;border:1px solid #dcdcdc;border-radius:8px;padding:8px 11px;font-size:12px;color:#555;box-shadow:0 6px 24px #0000000f}
+.fit-legend strong{font-weight:600;color:#3a3a3a;font-size:12px}
+.fit-legend ul{list-style:none;margin:5px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:4px 13px}
+.fit-legend li{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.fit-legend li small{color:#9a9a9a;font-size:11px}
+.fit-legend i{display:inline-block;width:11px;height:11px;border-radius:3px;flex:none}
+.fit-legend p{margin:5px 0 0;font-size:11px;line-height:1.45;color:#8a8a8a}
+.fit-legend~.garment-hint{bottom:150px}
+@media (max-width:720px){.stage-top-actions .stage-badge{display:none}.fit-legend{left:12px;right:62px;bottom:56px;padding:7px 9px}.fit-legend ul{gap:3px 10px}}
