@@ -79,9 +79,9 @@ test('사진 실루엣이 있으면 3D 몸판 밑단이 사진 비율대로 좁�
  const tee=PRODUCTS.find(item=>item.slot==='top')!,size=tee.sizes[0];
  const halfWidthAt=(group:THREE.Group,y:number)=>{const mesh=group.children[0] as THREE.Mesh,position=mesh.geometry.getAttribute('position');let best=Infinity,width=0;for(let i=0;i<position.count;i++){const d=Math.abs(position.getY(i)-y);if(d<best-1e-6){best=d;width=0;}if(Math.abs(d-best)<1e-6)width=Math.max(width,Math.abs(position.getX(i)));}return width;};
  const plain=makeGarment(tee,size,DEFAULT_BODY),shaped=makeGarment({...tee,photoShape:shape},size,DEFAULT_BODY);
- // 엉덩이 높이(1.12m 아래)는 상의 아래 바지가 비치지 않게 두는 최소 폭이 있어, 그 바로 위 1.14m에서 비교한다.
- const y=1.14;
- assert.ok(halfWidthAt(shaped,y)<halfWidthAt(plain,y)*.97,`1.14m 반폭 ${halfWidthAt(shaped,y)} < ${halfWidthAt(plain,y)}`);
+ // 엉덩이 높이(1.12m 아래)는 상의 아래 바지가 비치지 않게 두는 최소 폭이 있어, 그 바로 위 1.13m에서 비교한다.
+ const y=1.13;
+ assert.ok(halfWidthAt(shaped,y)<halfWidthAt(plain,y)*.97,`${y}m 반폭 ${halfWidthAt(shaped,y)} < ${halfWidthAt(plain,y)}`);
  const again=makeGarment({...tee},size,DEFAULT_BODY);
  assert.equal(halfWidthAt(again,y),halfWidthAt(plain,y),'실루엣이 없으면 같은 모양');
  disposeGroup(plain);disposeGroup(shaped);disposeGroup(again);

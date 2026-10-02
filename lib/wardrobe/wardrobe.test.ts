@@ -48,7 +48,8 @@ test('storage hydration strips unrecognized fields, including photo payloads',()
 test('garment size stays the product size: only where a larger body would poke through is the 3D shell pushed out',()=>{
  const p=PRODUCTS[0],size=p.sizes[1];
  const base=makeGarment(p,size,DEFAULT_BODY),big=makeGarment(p,size,setMeasurement(DEFAULT_BODY,'chest',140,'manual'));
- const width=(g:THREE.Group)=>new THREE.Box3().setFromObject(g).getSize(new THREE.Vector3()).x;
+ // 소매는 진동 위치와 길이가 체형에 따라 달라지므로 몸판 조각의 폭으로 비교한다.
+ const width=(g:THREE.Group)=>new THREE.Box3().setFromObject(g.getObjectByName('top-body')!).getSize(new THREE.Vector3()).x;
  assert.ok(width(big)>width(base),'몸이 옷보다 크면 그 높이의 옷 껍질을 몸 바깥으로 민다');
  // 핏 보기의 여유는 옷 실측 둘레에서 3D 몸 둘레를 뺀 값이라 가슴이 44cm 커지면 그만큼 줄어든다(모프 가중치 0.88).
  const gain=base.userData.fitEase.chest-big.userData.fitEase.chest;

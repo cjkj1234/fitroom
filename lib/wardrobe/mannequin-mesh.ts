@@ -1,5 +1,5 @@
 // public/models/mannequin.glb를 Node에서 읽어 체형 모프를 적용하고, 수평으로 잘라 단면(몸통·다리·팔)을 재는 도구.
-// 브라우저 번들에는 들어가지 않는다(측정 스크립트와 테스트에서만 쓴다).
+// 측정 스크립트·테스트와 옷 처짐 Worker(drape-worker.ts)에서 쓴다.
 import {MORPH_TARGETS,morphWeights,type MorphWeights} from './body-shape';
 import type {BodyProfile} from './types';
 
