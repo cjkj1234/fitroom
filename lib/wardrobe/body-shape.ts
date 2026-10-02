@@ -16,13 +16,16 @@ export function morphWeights(body:BodyProfile):MorphWeights{
 }
 
 // 높이 y(m, 현재 키 기준)의 몸 단면. perimeter는 줄자로 잰 둘레(볼록 껍질), rx·rz는 반폭·반깊이, x·z는 단면 중심.
+// arm은 오른팔 단면이다(왼팔은 x를 뒤집어 쓴다). armhole은 1.20~1.48m(175cm 기준)에서 x≥17cm인 몸 표면의 범위로,
+// 소매가 붙는 진동 둘레의 앞뒤 깊이를 정할 때 쓴다(perimeter는 0).
 export type BodySection={perimeter:number;rx:number;rz:number;x:number;z:number};
-export type BodyShape={torso:(y:number)=>BodySection|null;leg:(y:number)=>BodySection|null;neutralTorso:(y:number)=>BodySection|null;neutralLeg:(y:number)=>BodySection|null};
+export type BodyShape={torso:(y:number)=>BodySection|null;leg:(y:number)=>BodySection|null;arm:(y:number)=>BodySection|null;armhole:(y:number)=>BodySection|null;neutralTorso:(y:number)=>BodySection|null;neutralLeg:(y:number)=>BodySection|null};
 
 // mannequin-sections.ts는 175cm 마네킹을 높이별로 잘라 잰 중립 단면과, 모프 하나를 ±1로 줬을 때의 변화량이다.
 // 모프는 정점을 선형으로 옮기므로 단면도 가중치에 거의 선형으로 변한다(양수·음수 방향은 따로 잰다).
 type Row=(typeof SECTION_ROWS)[number];
-function sectionOf(row:Row,part:'torso'|'leg',weights:MorphWeights|null):BodySection|null{
+type Part='torso'|'leg'|'arm'|'armhole';
+function sectionOf(row:Row,part:Part,weights:MorphWeights|null):BodySection|null{
  const base=row[part];if(!base)return null;
  const value=[...base];
  if(weights)SECTION_TARGETS.forEach((name,t)=>{const w=weights[name];if(!w)return;const delta=(w>0?row.plus:row.minus)[part]?.[t];if(!delta)return;for(let i=0;i<5;i++)value[i]+=Math.abs(w)*delta[i];});
@@ -34,12 +37,12 @@ function lerpSection(a:BodySection|null,b:BodySection|null,t:number):BodySection
 }
 export function bodyShape(body:BodyProfile):BodyShape{
  const k=body.measurements.height/175,weights=morphWeights(body);
- const at=(part:'torso'|'leg',w:MorphWeights|null)=>(y:number)=>{
+ const at=(part:Part,w:MorphWeights|null)=>(y:number)=>{
   const f=(y/k-SECTION_START)/SECTION_STEP;if(f<0||f>SECTION_ROWS.length-1)return null;
   const i=Math.min(SECTION_ROWS.length-2,Math.floor(f)),s=lerpSection(sectionOf(SECTION_ROWS[i],part,w),sectionOf(SECTION_ROWS[i+1],part,w),f-i);
   return s&&{perimeter:s.perimeter*k,rx:s.rx*k,rz:s.rz*k,x:s.x*k,z:s.z*k};
  };
- return {torso:at('torso',weights),leg:at('leg',weights),neutralTorso:at('torso',null),neutralLeg:at('leg',null)};
+ return {torso:at('torso',weights),leg:at('leg',weights),arm:at('arm',weights),armhole:at('armhole',weights),neutralTorso:at('torso',null),neutralLeg:at('leg',null)};
 }
 
 // 타원 둘레(라마누잔 근사). 옷 고리의 둘레를 몸 둘레와 비교할 때 쓴다.

@@ -78,7 +78,11 @@ test('each garment group is named after its product so a 3D click can identify i
 });
 test('garments include trim details beyond the main body mesh',()=>{
  const count=(slot:string)=>{const p=PRODUCTS.find(item=>item.slot===slot)!,g=makeGarment(p,p.sizes[0],DEFAULT_BODY);let meshes=0;g.traverse(o=>{if(o instanceof THREE.Mesh)meshes++;});disposeGroup(g);return meshes;};
- assert.ok(count('top')>=8,'top: body, hem, collar, sleeves with cuffs and caps');
+ assert.ok(count('top')>=7,'top: body, hem, collar, sleeves with cuffs');
+ // 소매는 진동 둘레에서 바로 이어지는 곡면이라 어깨 위에 따로 얹는 공 모양 캡이 없다.
+ const tee=PRODUCTS.find(item=>item.slot==='top')!,g=makeGarment(tee,tee.sizes[0],DEFAULT_BODY),meshes:THREE.Mesh[]=[];g.traverse(o=>{if(o instanceof THREE.Mesh)meshes.push(o);});
+ assert.equal(meshes.filter(m=>m.name==='sleeve').length,2,'양쪽 소매');
+ assert.equal(meshes.filter(m=>m.geometry instanceof THREE.SphereGeometry).length,0,'어깨 캡 없음');disposeGroup(g);
  assert.ok(count('bottom')>=12,'bottom: seat, legs, hems, waistband, belt loops, fly');
  assert.ok(count('hat')>=10,'hat: crown, seams, button, band, brim and rim');
 });

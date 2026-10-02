@@ -72,3 +72,40 @@ for(const [name,body] of BODIES){
   }
  });
 }
+
+// 소매가 위팔과 어깨 끝을 덮는지: 팔 정점(그 높이 팔 단면 안)은 팔 단면 중심에서, 어깨 끝 정점(팔이 몸통에 붙는 1.32m 위, x≥17cm)은
+// 몸 안쪽 한 점에서 바깥으로 광선을 쏜다. 소매단 1.5cm 앞까지, 손목(1.12m) 위만 본다.
+function sleeveExposure(product:Product,body:BodyProfile,positions:Float32Array){
+ const size=product.sizes.find(item=>item.label===product.defaultSize)??product.sizes[0],shape=bodyShape(body),k=body.measurements.height/175,shoulderY=body.measurements.height/100*.835;
+ const group=makeGarment(product,size,body);group.updateMatrixWorld(true);
+ const meshes:THREE.Mesh[]=[];group.traverse(o=>{if(o instanceof THREE.Mesh)meshes.push(o);});
+ const sleeve=meshes.find(m=>m.name==='sleeve'&&m.geometry.getAttribute('position').getX(0)>0)!,position=sleeve.geometry.getAttribute('position'),n=41,rings=position.count/n;
+ const ringCenter=(r:number)=>{const v=new THREE.Vector3();for(let i=0;i<n;i++)v.add(new THREE.Vector3(position.getX(r*n+i),position.getY(r*n+i),position.getZ(r*n+i)));return v.multiplyScalar(1/n);};
+ const cuff=ringCenter(rings-1),forward=cuff.clone().sub(ringCenter(rings-2)).normalize(),raycaster=new THREE.Raycaster();raycaster.far=.5;
+ let tested=0,exposed=0;
+ for(let i=0;i<positions.length/3;i++){
+  const p=new THREE.Vector3(positions[i*3],positions[i*3+1],positions[i*3+2]);
+  if(p.x<=0||p.y>shoulderY+.02||p.y<1.12*k||p.clone().sub(cuff).dot(forward)>-.015)continue;
+  let direction:THREE.Vector3|null=null;
+  const arm=p.y<=1.32*k?shape.arm(p.y):null;
+  if(arm){if(Math.hypot((p.x-arm.x)/arm.rx,(p.z-arm.z)/arm.rz)<=1.15)direction=new THREE.Vector3(p.x-arm.x,0,p.z-arm.z);}
+  else if(p.y>1.32*k&&p.x>=.17*k)direction=new THREE.Vector3(p.x-.15*k,0,p.z-shape.torso(p.y)!.z);
+  if(!direction||direction.length()<1e-6)continue;
+  tested++;raycaster.set(p,direction.normalize());if(raycaster.intersectObjects(meshes,false).length===0)exposed++;
+ }
+ disposeGroup(group);
+ return {tested,exposed,share:exposed/Math.max(1,tested)};
+}
+// 긴소매(58cm)는 판매자 상품에서 들어올 수 있어 함께 본다. 허용 5%는 측정값(가장 큰 값: 185 큰 체형 사진 셔츠 3.7%)에 여유를 둔 상한이다.
+const LONG_SLEEVE:Product={...PRODUCTS.find(item=>item.slot==='top')!,id:'long-sleeve',name:'긴소매 58cm',sizes:PRODUCTS.find(item=>item.slot==='top')!.sizes.map(size=>({...size,sleeve:58}))};
+for(const [name,body] of [['기본 체형',DEFAULT_BODY] as [string,BodyProfile],...BODIES]){
+ test(`${name}: 소매가 위팔과 어깨 끝을 덮는다(팔이 소매를 뚫지 않는다)`,t=>{
+  const positions=bodyPositions(mesh,body);
+  for(const product of [...PRODUCTS.filter(item=>item.slot==='top'),PHOTO_SHIRT,LONG_SLEEVE]){
+   const result=sleeveExposure(product,body,positions);
+   t.diagnostic(`${product.name} 팔·어깨 노출 ${(result.share*100).toFixed(2)}% (${result.exposed}/${result.tested})`);
+   assert.ok(result.tested>150,`${product.name}: 검사 정점 ${result.tested}`);
+   assert.ok(result.share<=.05,`${product.name} 팔·어깨 노출 ${(result.share*100).toFixed(1)}% > 5%`);
+  }
+ });
+}

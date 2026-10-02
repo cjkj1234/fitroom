@@ -63,6 +63,16 @@ export function sliceAt(positions:Float32Array,indices:Uint32Array,y:number):Sec
   return {perimeter,minX,maxX,minZ:Math.min(...zs),maxZ:Math.max(...zs),crossesCenter:minX<0&&maxX>0};
  });
 }
+// 높이 y에서 x가 minX 이상인 몸 표면 점들의 범위. 진동(소매 붙는 곳) 둘레의 앞뒤 깊이를 재는 데 쓴다.
+export function bandAt(positions:Float32Array,indices:Uint32Array,y:number,minX:number){
+ let x0=Infinity,x1=-Infinity,z0=Infinity,z1=-Infinity;
+ for(let i=0;i<indices.length;i+=3)for(const [a,b] of [[indices[i],indices[i+1]],[indices[i+1],indices[i+2]],[indices[i+2],indices[i]]]){
+  const ya=positions[a*3+1],yb=positions[b*3+1];if((ya-y)*(yb-y)>0||ya===yb)continue;
+  const t=(y-ya)/(yb-ya),x=positions[a*3]+(positions[b*3]-positions[a*3])*t,z=positions[a*3+2]+(positions[b*3+2]-positions[a*3+2])*t;
+  if(x<minX)continue;x0=Math.min(x0,x);x1=Math.max(x1,x);z0=Math.min(z0,z);z1=Math.max(z1,z);
+ }
+ return x0<=x1?{minX:x0,maxX:x1,minZ:z0,maxZ:z1}:null;
+}
 // 줄자는 오목한 곳을 건너 재므로 둘레는 볼록 껍질의 둘레로 잰다.
 function convexHull(points:Array<[number,number]>){
  const sorted=[...points].sort((a,b)=>a[0]-b[0]||a[1]-b[1]),cross=(o:number[],a:number[],b:number[])=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);
@@ -72,8 +82,9 @@ function convexHull(points:Array<[number,number]>){
  return [...lower.slice(0,-1),...upper.slice(0,-1)];
 }
 // 몸통(중앙을 지나는 고리)과 오른쪽(+x) 다리를 고른다. 다리는 중앙을 지나지 않는 고리 중 중앙에 가장 가까운 것(손·팔은 더 바깥에 있다).
+// 몸통이 있는 높이에서는 중앙을 지나지 않는 +x 쪽 고리 중 가장 안쪽이 오른팔이다.
 export function torsoAndLeg(sections:Section[]){
  const torso=sections.filter(s=>s.crossesCenter).sort((a,b)=>b.perimeter-a.perimeter)[0]??null;
- const leg=torso?null:sections.filter(s=>s.minX>0).sort((a,b)=>a.minX-b.minX)[0]??null;
- return {torso,leg};
+ const outer=sections.filter(s=>s.minX>0).sort((a,b)=>a.minX-b.minX)[0]??null;
+ return {torso,leg:torso?null:outer,arm:torso?outer:null};
 }
