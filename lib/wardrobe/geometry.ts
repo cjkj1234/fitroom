@@ -141,6 +141,31 @@ function coverSection(ring:Ring,section:BodySection|null):Ring{
  return {...ring,rx:Math.max(ring.rx,section.rx+dx+FIT_GAP),rz:Math.max(ring.rz,section.rz+dz+FIT_GAP)};
 }
 
+// 바지 한 벌의 천: 엉덩이 고리(가랑이 조금 위~허리)와 두 다리 관(밑단~가랑이)을 하나의 곡면으로 잇는다. 각 다리의 맨 위 고리는
+// 바깥쪽 절반이 엉덩이 맨 아래 고리의 그쪽 절반이고, 안쪽 절반은 몸 가운데 면(x=0)에서 앞 중심→가랑이→뒤 중심으로 내려갔다
+// 올라오는 U자 밑위 곡선이다. 두 다리가 이 곡선을 함께 써서, 실제 바지처럼 앞·뒤 중심 솔기와 안쪽 솔기가 가랑이에서 만난다.
+// 다리 고리의 i번째 점은 뒤(0)→바깥(N/4)→앞(N/2)→안쪽(3N/4) 순서이고, 맨 아래 다리 고리와 맨 위 고리 사이는 blend개의 고리로 잇는다.
+function pantsSurface(seat:Ring[],legs:Array<{side:number;rings:Ring[]}>,crotch:number,N:number,blend:number,material:THREE.Material,colored:boolean){
+ const positions:number[]=[],colors:number[]=[],uvs:number[]=[],indices:number[]=[];
+ const add=(x:number,y:number,z:number,c:THREE.Color,u:number,v:number)=>{positions.push(x,y,z);if(colored)colors.push(c.r,c.g,c.b);uvs.push(u,v);return positions.length/3-1;};
+ const at=(i:number)=>new THREE.Vector3(positions[i*3],positions[i*3+1],positions[i*3+2]);
+ const seatIds=seat.map((r,j)=>Array.from({length:N},(_,i)=>{const a=i/N*Math.PI*2,c=Math.cos(a),s=Math.sin(a),p=2/(r.n??2);return add((r.x??0)+r.rx*Math.sign(c)*Math.pow(Math.abs(c),p),r.y+(r.dy?r.dy(a):0),(r.z??0)+r.rz*Math.sign(s)*Math.pow(Math.abs(s),p),r.color??NO_FIT_DATA,i/N,.5+.5*j/Math.max(1,seat.length-1));}));
+ const base=seatIds[0],front=at(base[N/4]),back=at(base[3*N/4]),top=seat[0].y,mid=(front.z+back.z)/2,half=(front.z-back.z)/2;
+ const crotchIds=Array.from({length:N/2-1},(_,m)=>{const t=Math.PI*(m+1)/(N/2);return add(0,top-(top-crotch)*Math.sin(t),mid+half*Math.cos(t),NO_FIT_DATA,.5,.5);});
+ const stitch=(lower:number[],upper:number[],flip:boolean)=>{for(let i=0;i<N;i++){const a=lower[i],a1=lower[(i+1)%N],b=upper[i],b1=upper[(i+1)%N];if(flip)indices.push(a,a1,b,b,a1,b1);else indices.push(a,b,a1,b,b1,a1);}};
+ for(let j=0;j<seatIds.length-1;j++)stitch(seatIds[j],seatIds[j+1],false);
+ for(const {side,rings} of legs){
+  const ids=rings.map((r,j)=>Array.from({length:N},(_,i)=>{const t=-Math.PI/2+i/N*Math.PI*2;return add((r.x??0)+side*r.rx*Math.cos(t),r.y,(r.z??0)+r.rz*Math.sin(t),r.color??NO_FIT_DATA,i/N,.5*j/rings.length);}));
+  const topRing=Array.from({length:N},(_,i)=>i<=N/2?base[(3*N/4+side*i+N)%N]:crotchIds[i-N/2-1]),last=ids[ids.length-1];
+  for(let b=1;b<=blend;b++){const t=b/(blend+1);ids.push(Array.from({length:N},(_,i)=>{const p=at(last[i]).lerp(at(topRing[i]),t);return add(p.x,p.y,p.z,NO_FIT_DATA,i/N,.5);}));}
+  ids.push(topRing);
+  // 왼쪽 다리는 거울상이라 면 방향이 바깥을 향하도록 삼각형 순서를 뒤집는다.
+  for(let j=0;j<ids.length-1;j++)stitch(ids[j],ids[j+1],side<0);
+ }
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));if(colored)g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));g.setIndex(indices);g.computeVertexNormals();
+ const mesh=new THREE.Mesh(g,material);mesh.castShadow=true;mesh.receiveShadow=true;mesh.name='bottom-body';mesh.userData.ringSize=N;return mesh;
+}
+
 function brimMeshes(rx:number,rz:number,base:number,zOffset:number,material:THREE.Material,edge:THREE.Material){
  const columns=32,rows=6,half=.9,length=.074,positions:number[]=[],indices:number[]=[],edgePoints:THREE.Vector3[]=[];
  for(let i=0;i<=columns;i++){
@@ -349,32 +374,44 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
    // 마네킹 골반은 앞뒤/좌우 비율이 약 0.65이므로 바지 단면도 그에 가깝게(0.68) 두어, 엉덩이가 넓은 바지가 위에 입은 상의를 뚫지 않게 한다.
    const [hipX,hipZ]=ellipseRadii(hipCirc,.68);
    const [waistX,waistZ]=ellipseRadii((size.waistFlat??40)*2/100,.68);
-   const crotch=waistY-rise,hem=waistY-length;
-   // 엉덩이 부분은 밑위(가랑이) 높이까지 내려와 앞뒤 중앙에서 다리와 이어지고, 양옆은 안쪽으로 모인다.
-   const seatProfile=profileRings([{y:crotch-.012,rx:hipX*.66,rz:hipZ*.58},{y:crotch+.02,rx:hipX*.86,rz:hipZ*.8},{y:crotch+.07,rx:hipX*.97,rz:hipZ*.9},{y:waistY-.12,rx:hipX,rz:hipZ},{y:waistY-.04,rx:waistX,rz:waistZ},{y:waistY,rx:waistX,rz:waistZ}],14);
+   // 밑위 실측은 허리에서 가랑이까지 앞 솔기를 따라 잰 길이라 수직 높이보다 길다. 수직으로는 그 82%로 보고(가정), 몸 가랑이(몸통 단면이
+   // 두 다리로 갈라지는 높이)보다 1.5cm 이상 아래에 둔다.
+   let bodyCrotch=.83*k;for(let y=k;y>.6*k;y-=.005)if(!shape.torso(y)){bodyCrotch=y;break;}
+   const crotch=Math.min(waistY-rise*.82,bodyCrotch-.015),hem=waistY-length;
+   // 엉덩이 고리는 가랑이 조금 위(밑위 높이의 30%, 최대 7cm)부터 허리까지, 그 아래는 두 다리다.
+   const seatBottom=crotch+Math.min(.07,(waistY-crotch)*.3),legTop=crotch-.005;
+   const fine=options.fine===true,N=fine?80:64,step=fine?.015:.03;
+   // 허리선은 앞이 1.2cm 낮고 뒤가 1.2cm 높다(바지 허리는 뒤가 더 올라온다). 허리 6cm 아래부터 서서히 기운다.
+   const tiltAt=(y:number)=>Math.min(1,Math.max(0,(y-(waistY-.06))/.06)),tilt=(y:number)=>{const t=tiltAt(y);return t?(a:number)=>-.012*t*Math.sin(a):undefined;};
+   const seatProfile=profileRings([{y:seatBottom,rx:hipX*.96,rz:hipZ*.9},...(waistY-.12>seatBottom+.02?[{y:waistY-.12,rx:hipX,rz:hipZ}]:[]),{y:waistY-.04,rx:waistX,rz:waistZ},{y:waistY,rx:waistX,rz:waistZ}],Math.max(3,Math.ceil((waistY-seatBottom)/step)));
    // 엉덩이 실측이 있을 때만 엉덩이 띠(0.88~0.99m, 가랑이 위·허리 7cm 아래)를 칠한다. 허리는 바지 허리선과 몸 측정 위치가 같은지
    // 알 수 없어 핏 카드처럼 판단을 보류하고, 다리 굵기는 엉덩이에서 나눠 그린 가정 모양이라 칠하지 않는다.
    const hipsMeasured=size.hipsFlat!==undefined;
-   const seat:Ring[]=seatProfile.map(r=>{const section=shape.torso(r.y),ease=hipsMeasured&&r.y>=.88*k&&r.y<=.99*k&&r.y>crotch+.02&&r.y<waistY-.07?ringEase(r.rx,r.rz,section):null;return {...coverSection({...r,rx:pelvisRx(r.y,r.rx),rz:pelvisRz(r.y,r.rz),z:torsoZ(r.y),n:2.3},section),color:paint(ease,'seat',r.y)};});
+   const seat:Ring[]=seatProfile.map(r=>{const section=shape.torso(r.y),ease=hipsMeasured&&r.y>=.88*k&&r.y<=.99*k&&r.y>crotch+.02&&r.y<waistY-.07?ringEase(r.rx,r.rz,section):null;return {...coverSection({...r,rx:pelvisRx(r.y,r.rx),rz:pelvisRz(r.y,r.rz),z:torsoZ(r.y),n:2.3},section),dy:tilt(r.y),color:paint(ease,'seat',r.y)};});
    if(hipsMeasured&&.95*k>crotch+.02&&.95*k<waistY-.07){const p=radiiAt(seatProfile,.95*k),ease=ringEase(p.rx,p.rz,shape.torso(.95*k));if(ease!==null)fitEase.hips=Math.round(ease*10)/10;}
-   const seatMesh=ringMesh(seat,mat);seatMesh.name='bottom-seat';group.add(seatMesh);
    // 밑단 단면 실측이 없으면 와이드·카펜터 바지는 허벅지 단면을 따라 곧게 떨어지게(밑단 ≈ 허벅지의 95%), 그 밖에는 24cm로 그린다.
    const wideLeg=product.silhouette==='wide'||product.style==='carpenter';
    const hemFlat=size.hemFlat??(wideLeg?(size.thighFlat!==undefined?size.thighFlat*.95:hipFlat*.62):24);
    const [hemX,hemZ]=ellipseRadii(hemFlat*2/100,.75);
    // Visual thigh radii are derived from hip partition, never used by numerical fit calculations.
-   const legProfile=profileRings([{y:hem,rx:hemX,rz:hemZ},{y:hem+.05,rx:hemX*1.005,rz:hemZ*1.005},{y:(hem+crotch)/2,rx:(hemX+hipX*.53)/2,rz:hipZ*.8},{y:crotch+.1,rx:hipX*.52,rz:hipZ*.94},{y:waistY-.13,rx:hipX*.48,rz:hipZ*.9}],16);
+   const legProfile=profileRings([{y:hem,rx:hemX,rz:hemZ},{y:hem+.05,rx:hemX*1.005,rz:hemZ*1.005},{y:(hem+legTop)/2,rx:(hemX+hipX*.53)/2,rz:hipZ*.8},{y:legTop,rx:hipX*.53,rz:hipZ*.92}],Math.max(8,Math.ceil((legTop-hem)/step)));
    const leg=legProfile.map(r=>({...r,rx:Math.max(r.rx,legMin(r.y).rx),rz:Math.max(r.rz,legMin(r.y).rz)}));
    // 마네킹 다리는 위쪽에서 아래로 갈수록 바깥으로 벌어지므로, 다리 고리의 중심을 높이별 다리 중심선에 맞춘다.
-   for(const s of [-1,1]){
+   const legs=[-1,1].map(s=>{
      // 엉덩이 높이에서는 두 다리가 엉덩이 폭 안에서 만나도록 중심을 모은다.
      // 제한은 가랑이 위쪽에서만 걸고, 아래로 갈수록 풀어서 벌어진 다리 중심선을 그대로 따른다.
      const onLeg=(y:number)=>{const c=legCenter(y);return {x:s*Math.min(c.x,Math.max(hipX*.5,.1*k)+Math.max(0,crotch+.05-y)*2),z:c.z};};
      // 다리 단면 표는 오른쪽(+x) 다리 기준이므로 왼쪽은 x를 뒤집는다. 다리는 가정 모양이라 덮기만 하고 색은 판단 보류(회색)다.
-     const sideLeg:Ring[]=leg.map(r=>{const at=shape.leg(r.y),section=at&&{...at,x:s*at.x};return {...coverSection({...r,...onLeg(r.y)},section),color:paint(null)};});
-     const legMesh=ringMesh(sideLeg,mat);legMesh.name='bottom-leg';group.add(legMesh);
+     // 두 다리 관이 가랑이 근처에서 겹치지 않게, 안쪽 끝은 몸 가운데에서 4mm 이상 떨어지도록 중심을 바깥으로 옮긴다.
+     const rings:Ring[]=leg.map(r=>{const at=shape.leg(r.y),section=at&&{...at,x:s*at.x},ring=coverSection({...r,...onLeg(r.y)},section);return {...ring,x:s*Math.max(Math.abs(ring.x??0),ring.rx+.004),color:paint(null)};});
+     return {side:s,rings,onLeg};
+   });
+   // 바지 천(엉덩이와 두 다리를 하나로 이은 곡면). 천 시뮬레이션에서는 허리밴드 높이(위 3.5cm)의 고리를 허리에 고정한다.
+   const pants=pantsSurface(seat,legs,crotch,N,fine?4:2,mat,fit),pinRings=Math.ceil(.035/step)+1;
+   pants.userData.pinned=[(seat.length-pinRings)*N,seat.length*N];group.add(pants);
+   for(const {side:s,rings:sideLeg,onLeg} of legs){
      // 밑단 접단과 스티치 선
-     group.add(ringMesh(bandRings(sideLeg,hem,hem+.03,.0016,onLeg),trim));
+     group.add(ringMesh(bandRings(sideLeg,hem,hem+.03,.0016,onLeg),trim,N));
      if(product.style==='carpenter'){
        // 옆 카고 주머니와 라벨: 바깥쪽 옆선(a=0)에서 뒤쪽으로 치우친 곳에 다리 단면을 따라 붙인다.
        const y0=hem+.06,y1=Math.min(y0+.21,crotch-.02);
@@ -390,13 +427,13 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
      // 뒷면 패치 주머니 두 개
      for(const s of [-1,1])group.add(patch((u,v)=>{const x=s*(.03+u*.115),y=waistY-.085+(-.13)*v;return new THREE.Vector3(x,y,surfaceZ(seat,x,y,-1,.004));},6,6,trim));
    }
-   // 허리밴드, 벨트 고리 다섯 개, 앞 여밈선
+   // 허리밴드, 벨트 고리 다섯 개, 앞 여밈선. 허리밴드와 고리도 허리선 기울기를 따른다.
    const band=radiiAt(seat,waistY-.02),bandX=Math.max(pelvisRx(waistY-.02,waistX),band.rx),bandZ=Math.max(pelvisRz(waistY-.02,waistZ),band.rz);
-   const waistband=ringMesh([{y:waistY-.04,rx:bandX*1.012,rz:bandZ*1.012,z:torsoZ(waistY-.04),n:2.3},{y:waistY+.001,rx:bandX*1.012,rz:bandZ*1.012,z:torsoZ(waistY),n:2.3}],trim);waistband.name='bottom-waistband';group.add(waistband);
+   const waistband=ringMesh([{y:waistY-.04,rx:bandX*1.012,rz:bandZ*1.012,z:torsoZ(waistY-.04),n:2.3,dy:tilt(waistY-.04)},{y:waistY+.001,rx:bandX*1.012,rz:bandZ*1.012,z:torsoZ(waistY),n:2.3,dy:tilt(waistY)}],trim,N);waistband.name='bottom-waistband';group.add(waistband);
    for(const angle of [Math.PI/2-.62,Math.PI/2+.62,.05,Math.PI-.05,Math.PI*1.5]){
      const loop=new THREE.Mesh(new THREE.BoxGeometry(.012,.052,.006),trim);
-     const tx=-bandX*Math.sin(angle),tz=bandZ*Math.cos(angle);
-     loop.position.set(bandX*1.014*Math.cos(angle),waistY-.022,torsoZ(waistY-.022)+bandZ*1.014*Math.sin(angle));loop.rotation.y=Math.atan2(-tz,tx);loop.castShadow=true;group.add(loop);
+     const tx=-bandX*Math.sin(angle),tz=bandZ*Math.cos(angle),y=waistY-.022-.012*tiltAt(waistY-.022)*Math.sin(angle);
+     loop.position.set(bandX*1.014*Math.cos(angle),y,torsoZ(y)+bandZ*1.014*Math.sin(angle));loop.rotation.y=Math.atan2(-tz,tx);loop.castShadow=true;group.add(loop);
    }
    const flyY=waistY-.04-.055,fly=new THREE.Mesh(new THREE.BoxGeometry(.004,.11,.004),trim);fly.position.set(0,flyY,torsoZ(flyY)+radiiAt(seat,flyY).rz+.001);group.add(fly);
  } else {

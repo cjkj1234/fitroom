@@ -8,13 +8,15 @@ import {bodyShape} from './body-shape';
 import {makeGarment,disposeGroup} from './geometry';
 import {bodyPositions,parseMannequin} from './mannequin-mesh';
 import {buildBodySdf,sampleSdf} from './body-sdf';
-import {drapeTop} from './drape';
+import {drapeBottom,drapeTop} from './drape';
 import type {BodyProfile} from './types';
 
 // 천 처짐 시뮬레이션: 몸 거리장이 정확한지, 늘어뜨린 상의가 몸·바지를 뚫지 않고 어깨에 걸치는지 검사한다.
 const mesh=parseMannequin(new Uint8Array(readFileSync(new URL('../../public/models/mannequin.glb',import.meta.url))));
 const tee=PRODUCTS.find(item=>item.id==='6170660')!,pants=PRODUCTS.find(item=>item.slot==='bottom')!;
-const under={product:pants,size:pants.sizes.find(size=>size.label===pants.defaultSize)!};
+const pantsSize=pants.sizes.find(size=>size.label===pants.defaultSize)!;
+// 상의는 늘어뜨린 바지 위에 늘어뜨린다(화면의 Worker와 같은 순서).
+function drapedPants(body:BodyProfile){const group=makeGarment(pants,pantsSize,body,false,{fine:true});drapeBottom(group,mesh,body);const positions:Float32Array[]=[];group.traverse(o=>{if(o instanceof THREE.Mesh)positions.push(new Float32Array(o.geometry.getAttribute('position').array));});return {group,positions};}
 
 test('몸 거리장은 마네킹 표면에서 0에 가깝고, 표면 밖은 양수·안은 음수다',()=>{
  const positions=bodyPositions(mesh,DEFAULT_BODY),sdf=buildBodySdf([{positions,indices:mesh.indices}],{min:[-.45,.75,-.2],max:[.45,1.62,.3]});
@@ -51,7 +53,7 @@ for(const [name,body] of [['기본 체형',DEFAULT_BODY],['185 큰 체형',makeP
   const size=tee.sizes.find(item=>item.label===tee.defaultSize)!,group=makeGarment(tee,size,body,false,{fine:true}),k=body.measurements.height/175,shape=bodyShape(body);
   const panel=group.getObjectByName('top-body') as THREE.Mesh,position=panel.geometry.getAttribute('position'),last=position.count-113;
   const neckBefore=Array.from({length:113},(_,i)=>position.getY(last+i)).reduce((a,b)=>a+b,0)/113;
-  const result=drapeTop(group,mesh,body,under)!;
+  const pantsDraped=drapedPants(body),result=drapeTop(group,mesh,body,{product:pants,size:pantsSize,positions:pantsDraped.positions})!;
   t.diagnostic(`${result.ms}ms, 입자 ${result.particles}, 평균 늘어남 ${(result.strainMean*100).toFixed(1)}%`);
   group.traverse(o=>{if(o instanceof THREE.Mesh)assert.ok(Array.from(o.geometry.getAttribute('position').array).every(Number.isFinite),`${o.name} 좌표`);});
   assert.ok(result.strainMean<.04,`평균 늘어남 ${(result.strainMean*100).toFixed(1)}%`);
@@ -65,11 +67,39 @@ for(const [name,body] of [['기본 체형',DEFAULT_BODY],['185 큰 체형',makeP
   // 측정: 기본 체형 0%, 185 큰 체형 2.0%(소매와 몸판이 만나는 진동 앞쪽의 몇 점). 허용은 3%.
   assert.ok(shoulders.tested>100&&shoulders.share<=.03,`어깨 노출 ${(shoulders.share*100).toFixed(1)}%`);
   assert.ok(torso.tested>500&&torso.share<=.02,`몸통 노출 ${(torso.share*100).toFixed(1)}%`);
-  // 천 입자는 바지(엉덩이 관) 안으로 들어가지 않는다.
-  const bottom=makeGarment(under.product,under.size,body),seat=bottom.getObjectByName('bottom-seat') as THREE.Mesh;
+  // 상의 입자는 늘어뜨린 바지 안으로 들어가지 않는다.
+  const bottom=pantsDraped.group,seat=bottom.getObjectByName('bottom-body') as THREE.Mesh;
   const seatSdf=buildBodySdf([{positions:new Float32Array(seat.geometry.getAttribute('position').array),indices:Uint32Array.from(seat.geometry.getIndex()!.array)}],{min:[-.4,.7*k,-.3],max:[.4,1.1*k,.35]});
   const out=[0,0,0,0];let inside=0;for(let i=0;i<position.count;i++)if(sampleSdf(seatSdf,position.getX(i),position.getY(i),position.getZ(i),out)[0]<-.002)inside++;
   assert.ok(inside/position.count<.005,`바지 안으로 들어간 상의 정점 ${inside}/${position.count}`);
   disposeGroup(group);disposeGroup(bottom);
+ });
+}
+
+// 바지: 허리는 고정되고, 다리는 늘어져 바닥에서 멈추며, 몸을 뚫지 않고 엉덩이·다리를 덮는다.
+const BOTTOM_CASES:Array<[string,BodyProfile,string]>=[['기본 체형',DEFAULT_BODY,'3504218'],['기본 체형',DEFAULT_BODY,'5196637'],['185 큰 체형',makePreset(185,'broad'),'3547134']];
+for(const [name,body,id] of BOTTOM_CASES){
+ const product=PRODUCTS.find(item=>item.id===id)!;
+ test(`${name}: ${product.name}은 허리에 걸려 늘어지고 바닥에서 멈추며 몸을 뚫지 않는다`,t=>{
+  const size=product.sizes.find(item=>item.label===product.defaultSize)!,group=makeGarment(product,size,body,false,{fine:true}),k=body.measurements.height/175;
+  const panel=group.getObjectByName('bottom-body') as THREE.Mesh,position=panel.geometry.getAttribute('position'),[pinFrom,pinTo]=panel.userData.pinned as [number,number];
+  const waistBefore=Float32Array.from({length:(pinTo-pinFrom)*3},(_,i)=>position.array[pinFrom*3+i]);
+  const result=drapeBottom(group,mesh,body)!;
+  t.diagnostic(`${result.ms}ms, 입자 ${result.particles}, 평균 늘어남 ${(result.strainMean*100).toFixed(1)}%`);
+  group.traverse(o=>{if(o instanceof THREE.Mesh)assert.ok(Array.from(o.geometry.getAttribute('position').array).every(Number.isFinite),`${o.name} 좌표`);});
+  assert.ok(result.strainMean<.03,`평균 늘어남 ${(result.strainMean*100).toFixed(1)}%`);
+  for(let i=0;i<waistBefore.length;i++)assert.equal(position.array[pinFrom*3+i],waistBefore[i],'허리밴드 높이 고리는 고정');
+  let lowest=Infinity;for(let i=0;i<position.count;i++)lowest=Math.min(lowest,position.getY(i));
+  assert.ok(lowest>=-.001,`가장 낮은 점 ${(lowest*100).toFixed(1)}cm (바닥 0)`);
+  // 몸 안으로 2mm 넘게 들어간 바지 입자.
+  const bodySdf=buildBodySdf([{positions:bodyPositions(mesh,body),indices:mesh.indices}],{min:[-.5,-.02,-.3],max:[.5,1.2*k,.4]}),out=[0,0,0,0];
+  let inside=0;for(let i=0;i<position.count;i++)if(sampleSdf(bodySdf,position.getX(i),position.getY(i),position.getZ(i),out)[0]<-.002)inside++;
+  assert.ok(inside/position.count<.005,`몸 안으로 들어간 바지 정점 ${inside}/${position.count}`);
+  // 엉덩이·다리(밑단 8cm 위~허리 5cm 아래)가 법선 방향 30cm 안에서 바지에 덮인다. 가랑이 맨 아래는 두 다리 사이 틈으로 빠지는 광선이 있어 2%까지 허용한다.
+  const hemY=(body.measurements.legLength-(size.length??105))/100;
+  const covered=exposedAlongNormals(group,body,p=>p.y>Math.max(.08,hemY+.08)&&p.y<body.measurements.legLength/100-.05&&Math.abs(p.x)<.3*k,.3);
+  t.diagnostic(`엉덩이·다리 노출 ${covered.exposed}/${covered.tested}`);
+  assert.ok(covered.tested>800&&covered.share<=.02,`엉덩이·다리 노출 ${(covered.share*100).toFixed(1)}%`);
+  disposeGroup(group);
  });
 }

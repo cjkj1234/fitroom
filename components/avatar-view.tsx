@@ -34,7 +34,7 @@ const FIT_VIEW_KEY='fitroom.fitView.v1';
 function readFitView(){try{return typeof window!=='undefined'&&window.sessionStorage.getItem(FIT_VIEW_KEY)==='1';}catch{return false;}}
 function writeFitView(on:boolean){try{window.sessionStorage.setItem(FIT_VIEW_KEY,on?'1':'0');}catch{}}
 
-// 상의는 먼저 절차형 모양으로 보여 주고, Worker에서 처짐 시뮬레이션이 끝나면 정점 위치를 바꿔 끼운다. 같은 옷·치수·체형이면 결과를 다시 쓴다.
+// 상의·하의는 먼저 절차형 모양으로 보여 주고, Worker에서 처짐 시뮬레이션이 끝나면 정점 위치를 바꿔 끼운다. 같은 옷·치수·체형이면 결과를 다시 쓴다.
 const drapeKey=(request:Omit<DrapeRequest,'key'>)=>JSON.stringify([{...request.product,frontTexture:undefined},request.size,request.body.measurements,request.fitView,request.textured,request.under&&[request.under.product.id,request.under.size]]);
 function applyDrape(group:THREE.Object3D,positions:Float32Array[]){
  const meshes:THREE.Mesh[]=[];group.traverse(o=>{if(o instanceof THREE.Mesh)meshes.push(o);});
@@ -60,12 +60,13 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
    const bottomItem=Object.values(outfit).map(item=>{const p=products.find(product=>product.id===item.productId);const s=p?.sizes.find(candidate=>candidate.label===item.size);return p&&s&&p.slot==='bottom'?{product:p,size:s}:null;}).find(Boolean)??undefined;
    Object.values(outfit).forEach(item=>{
     const p=products.find(product=>product.id===item.productId);const s=p?.sizes.find(candidate=>candidate.label===item.size);if(!p||!s)return;
-    const texture=textureFor(p),fine=p.slot==='top',garment=makeGarment(p,s,body,false,{frontTexture:texture,fitView,fine});a.clothes.add(garment);
+    const texture=textureFor(p),fine=p.slot==='top'||p.slot==='bottom',garment=makeGarment(p,s,body,false,{frontTexture:texture,fitView,fine});a.clothes.add(garment);
     if(!fine)return;
-    const request={product:p,size:s,body,fitView,textured:Boolean(texture),under:bottomItem},key=drapeKey(request),cached=drapeCache.current.get(key);garment.userData.drapeKey=key;
+    const request={product:p,size:s,body,fitView,textured:Boolean(texture),under:p.slot==='top'?bottomItem:undefined},key=drapeKey(request),cached=drapeCache.current.get(key);garment.userData.drapeKey=key;
     if(!cached||!applyDrape(garment,cached))requests.push({key,...request});
    });
-   requestDrape(requests);a.clearHover();a.render();
+   // 하의를 먼저 보낸다. Worker는 늘어뜨린 하의를 기억해 두었다가 상의를 그 위에 늘어뜨린다.
+   requestDrape(requests.sort((x,y)=>Number(x.product.slot==='top')-Number(y.product.slot==='top')));a.clearHover();a.render();
  }
  // 체형 슬라이더를 움직이는 동안에는 보내지 않고, 0.3초 멈추면 아직 없는 결과만 Worker에 맡긴다.
  function requestDrape(requests:DrapeRequest[]){

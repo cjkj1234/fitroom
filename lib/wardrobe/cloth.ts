@@ -15,10 +15,15 @@ export type DrapeSettings={
  iterations:number;// 한 단계에서 늘어남 제약을 푸는 횟수
  settle:number;// 처음 이 비율의 시간 동안 어깨 위쪽(옷 그룹의 userData.yokeFrom 위)은 눌린 만큼 쉬는 길이를 줄여 몸에 맞춘다
  shrink:number;// 그때 쉬는 길이를 줄일 수 있는 한도(처음 길이에 대한 비율)
+ floor:number;// 바닥 높이(m). 긴 바지 밑단이 바닥에 닿아 쌓인다
 };
-export const DRAPE_DEFAULTS:DrapeSettings={seconds:.9,steps:600,thickness:.003,bend:.004,friction:.6,damping:3,iterations:3,settle:.4,shrink:.7};
+export const DRAPE_DEFAULTS:DrapeSettings={seconds:.9,steps:600,thickness:.003,bend:.004,friction:.6,damping:3,iterations:3,settle:.4,shrink:.7,floor:0};
+// 바지: 면 능직·데님처럼 저지보다 뻣뻣하게(굽힘 비율 3배) 하고, 허리는 고정하므로 어깨 맞춤은 쓰지 않는다.
+export const DRAPE_BOTTOM:DrapeSettings={...DRAPE_DEFAULTS,bend:.012,settle:0};
 // 시뮬레이션하는 옷 조각의 이름. 나머지 조각(밑단·카라·단추·주머니·사진 앞면 등)은 가장 가까운 천 삼각형에 붙여 따라 움직인다.
-export const CLOTH_PARTS=['top-body','sleeve'];
+export const CLOTH_PARTS=['top-body','sleeve','bottom-body'];
+// 덧붙은 조각을 붙일 큰 천 조각(몸판). 소매단 띠('cuff')만 소매에 붙인다.
+const PANELS=['top-body','bottom-body'];
 
 type Binding={mesh:THREE.Mesh;triangle:Int32Array;weights:Float32Array;triangles:number[]};
 
@@ -49,6 +54,9 @@ export function drapeGarment(group:THREE.Group,sdf:BodySdf,settings:DrapeSetting
   for(let t=0;t<index.count;t+=3){const a=map[index.getX(t)],b=map[index.getX(t+1)],c=map[index.getX(t+2)];if(a!==b&&b!==c&&a!==c)triangles.push(a,b,c);}
  }
  const n=xs.length/3,x=new Float64Array(xs),previous=new Float64Array(n*3),velocity=new Float64Array(n*3);
+ // 고정 입자(바지 허리밴드 높이 고리 등, 조각의 userData.pinned=[시작, 끝) 정점 범위)는 질량을 무한대(역질량 0)로 둔다.
+ const inverseMass=new Float64Array(n).fill(1);
+ parts.forEach((mesh,p)=>{const pinned=mesh.userData.pinned as [number,number]|undefined;if(pinned)for(let i=pinned[0];i<pinned[1];i++)inverseMass[vertexParticle[p][i]]=0;});
  // 2) 제약: 삼각형 모서리는 늘어나지 않게(쉬는 길이 유지), 모서리를 공유하는 두 삼각형의 맞은편 꼭짓점 사이는 약하게 유지해 굽힘에 저항한다.
  const edgeTriangles=new Map<number,number[]>();
  for(let t=0;t<triangles.length;t+=3)for(let e=0;e<3;e++){const a=triangles[t+e],b=triangles[t+(e+1)%3],key=a<b?a*n+b:b*n+a,opposite=triangles[t+(e+2)%3];const list=edgeTriangles.get(key);if(list)list.push(opposite);else edgeTriangles.set(key,[opposite]);}
@@ -78,7 +86,7 @@ export function drapeGarment(group:THREE.Group,sdf:BodySdf,settings:DrapeSetting
  // 붙어 시뮬레이션 뒤 가시처럼 튀어나오지 않게 하기 위해서다.
  const partOf=new Int32Array(n);parts.forEach((_,p)=>{const end=p+1<parts.length?partStart[p+1]:n;for(let i=partStart[p];i<end;i++)partOf[i]=p;});
  const trianglesOf=(names:string[])=>{const out:number[]=[];for(let t=0;t<triangles.length;t+=3)if(names.includes(parts[partOf[triangles[t]]].name))out.push(t);return out;};
- const bindings=[...bindOthers(others.filter(mesh=>mesh.name==='cuff'),x,triangles,trianglesOf(['sleeve'])),...bindOthers(others.filter(mesh=>mesh.name!=='cuff'),x,triangles,trianglesOf(['top-body']))];
+ const bindings=[...bindOthers(others.filter(mesh=>mesh.name==='cuff'),x,triangles,trianglesOf(['sleeve'])),...bindOthers(others.filter(mesh=>mesh.name!=='cuff'),x,triangles,trianglesOf(PANELS))];
  // 어깨 맞춤: 절차형 상의의 어깨선은 몸보다 완만해서, 그대로 내려앉으면 목·어깨 둘레가 눌려 종이처럼 구겨진다. 실제 옷은 패턴의
  // 어깨 기울기가 몸에 맞으므로, 처음 settle 동안 yokeFrom 위의 모서리는 눌린 만큼 쉬는 길이를 줄이고(최대 shrink까지) 굽힘 기준도
  // 지금 모양으로 옮긴다. 그 아래 몸판의 둘레(실측)는 바꾸지 않는다.
@@ -90,18 +98,22 @@ export function drapeGarment(group:THREE.Group,sdf:BodySdf,settings:DrapeSetting
  const solve=(list:Int32Array,rest:Float64Array,fraction:number)=>{
   for(let c=0,m=rest.length;c<m;c++){
    const a=list[c*2],b=list[c*2+1],dx=x[b]-x[a],dy=x[b+1]-x[a+1],dz=x[b+2]-x[a+2],length=Math.sqrt(dx*dx+dy*dy+dz*dz);
-   if(length<1e-9)continue;
-   const s=fraction*.5*(length-rest[c])/length;
-   x[a]+=dx*s;x[a+1]+=dy*s;x[a+2]+=dz*s;x[b]-=dx*s;x[b+1]-=dy*s;x[b+2]-=dz*s;
+   const wa=inverseMass[a/3],wb=inverseMass[b/3],sum=wa+wb;if(length<1e-9||!sum)continue;
+   const s=fraction*(length-rest[c])/length/sum;
+   x[a]+=dx*s*wa;x[a+1]+=dy*s*wa;x[a+2]+=dz*s*wa;x[b]-=dx*s*wb;x[b+1]-=dy*s*wb;x[b+2]-=dz*s*wb;
   }
  };
  // 몸과 충돌: 거리장이 두께보다 작으면 기울기 방향으로 밀어 내고, 이번 단계에 표면을 따라 미끄러진 만큼을 마찰로 줄인다.
+ // 바닥(settings.floor)도 위쪽 법선을 가진 표면으로 같은 방식으로 처리한다.
  const collide=(friction:number)=>{
   for(let i=0;i<n*3;i+=3){
+   if(!inverseMass[i/3])continue;
+   const floorDepth=settings.floor+settings.thickness-x[i+1];
    sampleSdf(sdf,x[i],x[i+1],x[i+2],sample);
-   const depth=settings.thickness-sample[0];if(depth<=0)continue;
-   const g=Math.sqrt(sample[1]*sample[1]+sample[2]*sample[2]+sample[3]*sample[3]);if(g<1e-6)continue;
-   const nx=sample[1]/g,ny=sample[2]/g,nz=sample[3]/g;
+   let depth=settings.thickness-sample[0],nx=0,ny=1,nz=0;
+   if(depth>0){const g=Math.sqrt(sample[1]*sample[1]+sample[2]*sample[2]+sample[3]*sample[3]);if(g<1e-6)depth=0;else{nx=sample[1]/g;ny=sample[2]/g;nz=sample[3]/g;}}
+   if(floorDepth>depth){depth=floorDepth;nx=0;ny=1;nz=0;}
+   if(depth<=0)continue;
    x[i]+=nx*depth;x[i+1]+=ny*depth;x[i+2]+=nz*depth;
    if(!friction)continue;
    const mx=x[i]-previous[i],my=x[i+1]-previous[i+1],mz=x[i+2]-previous[i+2],along=mx*nx+my*ny+mz*nz;
@@ -122,6 +134,7 @@ export function drapeGarment(group:THREE.Group,sdf:BodySdf,settings:DrapeSetting
    for(const c of yokeBends)bendRest[c]=lengthOf(bendList,c);
   }
   for(let i=0;i<n*3;i+=3){
+   if(!inverseMass[i/3]){previous[i]=x[i];previous[i+1]=x[i+1];previous[i+2]=x[i+2];continue;}
    velocity[i]*=damp;velocity[i+1]=velocity[i+1]*damp-gravity*h;velocity[i+2]*=damp;
    previous[i]=x[i];previous[i+1]=x[i+1];previous[i+2]=x[i+2];
    x[i]+=velocity[i]*h;x[i+1]+=velocity[i+1]*h;x[i+2]+=velocity[i+2]*h;

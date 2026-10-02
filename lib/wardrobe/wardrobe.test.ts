@@ -84,7 +84,7 @@ test('garments include trim details beyond the main body mesh',()=>{
  const tee=PRODUCTS.find(item=>item.slot==='top')!,g=makeGarment(tee,tee.sizes[0],DEFAULT_BODY),meshes:THREE.Mesh[]=[];g.traverse(o=>{if(o instanceof THREE.Mesh)meshes.push(o);});
  assert.equal(meshes.filter(m=>m.name==='sleeve').length,2,'양쪽 소매');
  assert.equal(meshes.filter(m=>m.geometry instanceof THREE.SphereGeometry).length,0,'어깨 캡 없음');disposeGroup(g);
- assert.ok(count('bottom')>=12,'bottom: seat, legs, hems, waistband, belt loops, fly');
+ assert.ok(count('bottom')>=10,'bottom: one-piece trousers (seat and legs), hems, waistband, belt loops, fly');
  assert.ok(count('hat')>=10,'hat: crown, seams, button, band, brim and rim');
 });
 test('all garment variants generate finite geometry',()=>{for(const p of PRODUCTS)for(const s of p.sizes){const g=makeGarment(p,s,DEFAULT_BODY);g.traverse(o=>{if(o instanceof THREE.Mesh)assert.ok(Array.from(o.geometry.getAttribute('position').array).every(Number.isFinite));});disposeGroup(g);}});
