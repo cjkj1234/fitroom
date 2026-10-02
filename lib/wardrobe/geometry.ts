@@ -164,7 +164,8 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
  const legCenter=(y:number)=>{const d=shift(shape.leg(y),shape.neutralLeg(y));return {x:interpolate(LEG_X,y/k)*k+d.x,z:interpolate(LEG_Z,y/k)*k+d.z};};
  if(product.slot==='top') {
    const c=(size.chestCirc??(size.chestFlat??53)*2)/100;
-   const [rx,rz]=ellipseRadii(c),length=(size.length??70)/100,sw=(size.shoulder??50)/200;
+   // 판매자가 평면 사진에서 잰 몸판 실루엣(photoShape)이 있으면 기장 실측이 없을 때 사진 비율로 기장을 정한다.
+   const photo=product.photoShape,[rx,rz]=ellipseRadii(c),length=size.length!==undefined?size.length/100:photo?c/2*photo.lengthToChest:.7,sw=(size.shoulder??50)/200;
    const top=shoulderY+.045,bottom=top-length,neckStart=shoulderY+.014;
    // 오픈카라 셔츠는 앞이 가슴까지 깊게 파인 V 목선(단추 여밈)이고, 티셔츠는 얕게 둥근 목선이다.
    const shirt=product.style==='shirt',neckDip=shirt?.11:.036,neckPower=shirt?3.2:1.6;
@@ -175,9 +176,13 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
    // 상의는 바지 위에 덧입으므로, 골반 높이에서는 그 위의 바지가 삐져나오지 않을 만큼(폭 +20%, 깊이 +42%) 넉넉하게 감싼다.
    const overPelvisRx=(y:number,rx:number)=>y<1.12*k?Math.max(rx,interpolate(PELVIS_HALF_WIDTH,y/k)*k*1.2):rx;
    const overPelvisRz=(y:number,rz:number)=>y<1.12*k?Math.max(rz,interpolate(PELVIS_HALF_DEPTH,y/k)*k*1.5):rz;
+   // 몸판 아래쪽 고리: 사진 실루엣이 있으면 겨드랑이(사진의 위치를 기장에 맞춰 옮김)부터 밑단까지 11곳의 폭 비율대로,
+   // 없으면 가슴에서 곧게 내린 기본 모양으로 만든다. 평면 폭 W는 둘레 2W로 바꿔 타원 반지름을 구한다.
+   const photoArmpit=photo?Math.min(shoulderY-.07,Math.max(shoulderY-.22,top-photo.armpit*length)):shoulderY-.12;
+   const lowerBody:Ring[]=photo?photo.bodyWidths.map((ratio,i)=>{const t=i/(photo.bodyWidths.length-1),[wx,wz]=ellipseRadii(c*ratio);return {y:photoArmpit-(photoArmpit-bottom)*t,rx:wx,rz:wz*(1-.05*t)};})
+     :[{y:bottom,rx:rx*1.02,rz:rz*.95},{y:bottom+.04,rx:rx*1.02,rz:rz*.95},{y:bottom+length*.38,rx:rx*.985,rz:rz*.945},{y:shoulderY-.12,rx,rz}];
    const profile=profileRings([
-     {y:bottom,rx:rx*1.02,rz:rz*.95},{y:bottom+.04,rx:rx*1.02,rz:rz*.95},{y:bottom+length*.38,rx:rx*.985,rz:rz*.945},
-     {y:shoulderY-.12,rx,rz},{y:shoulderY-.06,rx:rx+(sw-rx)*.4,rz:rz*.92},{y:shoulderY,rx:sw,rz:rz*.84},
+     ...lowerBody,{y:shoulderY-.06,rx:rx+(sw-rx)*.4,rz:rz*.92},{y:shoulderY,rx:sw,rz:rz*.84},
      {y:shoulderY+.014,rx:sw*.82,rz:rz*.76},{y:shoulderY+.03,rx:sw*.5,rz:rz*.6},{y:top,rx:.068,rz:.061},
    ],22,top-.03);
    // 마네킹 팔은 1.34m(175cm 기준)에서 몸통 단면에 붙는다. 그래서 몸통 단면과 여유는 팔이 붙기 전 마지막 측정 행(1.32m)까지만 쓰고,

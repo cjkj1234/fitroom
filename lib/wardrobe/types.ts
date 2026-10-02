@@ -1,3 +1,5 @@
+import type { TopSilhouette } from '../seller/photo-silhouette';
+
 export type Slot = 'hat' | 'top' | 'bottom';
 export type InputSource = 'simple' | 'manual' | 'photo';
 export type BodyKey = 'height' | 'chest' | 'waist' | 'hips' | 'shoulders' | 'armLength' | 'legLength' | 'head';
@@ -15,6 +17,8 @@ export type Product = {
   style?: 'shirt' | 'carpenter';
   // 판매자가 평면 촬영한 상의 사진에서 만든 앞면 텍스처(JPEG 데이터 주소). 이 탭 세션에서만 존재하며 서버·계정에는 없다.
   frontTexture?: string;
+  // 판매자가 평면 촬영한 상의 사진에서 잰 몸판 실루엣 비율. 있으면 3D 상의 몸판 폭·겨드랑이 위치를 사진 모양대로 만든다.
+  photoShape?: TopSilhouette;
   elasticWaist?: boolean; adjustableHat?: boolean; note?: string;
   measurementBasis?: string; image: string; source: 'demo' | 'seller';
   sellerProductId?: string; priceKrw?: number; stock?: number;

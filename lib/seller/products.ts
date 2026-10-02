@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import {PRODUCTS} from '../wardrobe/catalog';
+import {SILHOUETTE_LIMITS,SILHOUETTE_SAMPLES} from './photo-silhouette';
 
 export const SELLER_PRODUCTS_STORAGE_KEY='fitroom.seller.products.v1';
 export const SELLER_CATEGORIES=['top','bottom','hat'] as const;
@@ -26,6 +27,10 @@ export const sellerSizeSchema=z.object({
  waistFlat:optionalMeasurement,hipsFlat:optionalMeasurement,thighFlat:optionalMeasurement,rise:optionalMeasurement,headCirc:optionalMeasurement,
 }).strict();
 
+// 평면 촬영한 상의 사진에서 잰 몸판 실루엣 비율(lib/seller/photo-silhouette.ts). 사진이 아니라 숫자만 저장한다.
+const ratio=([min,max]:readonly [number,number])=>z.number().min(min).max(max);
+export const topSilhouetteSchema=z.object({version:z.literal(1),bodyWidths:z.array(ratio(SILHOUETTE_LIMITS.bodyWidth)).length(SILHOUETTE_SAMPLES),armpit:ratio(SILHOUETTE_LIMITS.armpit),lengthToChest:ratio(SILHOUETTE_LIMITS.lengthToChest)}).strict();
+
 export const sellerProductSchema=z.object({
  version:z.literal(1),id:requiredText(100),storeName:requiredText(40),name:requiredText(80),category:z.enum(SELLER_CATEGORIES),color:requiredText(40),
  features:z.array(requiredText(100)).min(1).max(5),material:z.union([requiredText(100),z.null()]),
@@ -33,6 +38,7 @@ export const sellerProductSchema=z.object({
  purchaseUrl:optionalPurchaseUrl,
  // 사진에서 고른 3D 표시 색상(#rrggbb). 없으면 색상 이름으로 정한다. 사진 자체는 저장하지 않는다.
  colorHex:z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+ photoShape:topSilhouetteSchema.nullable().optional(),
  sizes:z.array(sellerSizeSchema).max(6),createdAt:z.string().datetime(),updatedAt:z.string().datetime(),
  status:z.enum(SELLER_PRODUCT_STATUSES).default('draft'),publishedAt:z.union([z.string().datetime(),z.null()]).default(null),
 }).strict();
@@ -90,7 +96,7 @@ const RESERVED_STORE_NAMES=new Set(PRODUCTS.map(product=>normalizeStoreName(prod
 export function isReservedStoreName(name:string){return RESERVED_STORE_NAMES.has(normalizeStoreName(name));}
 export function reservedStoreNameMessage(name:string){return `‘${name.trim()}’ 이름은 FITROOM 시연 상점이 이미 쓰고 있어요. 내 상점 이름을 입력해 주세요.`;}
 
-const PRODUCT_FIELD_LABELS:Record<string,string>={storeName:'상점명',name:'상품명',category:'카테고리',color:'색상',colorHex:'3D 표시 색상',features:'핵심 특징',material:'소재',priceKrw:'판매가',stock:'재고',purchaseUrl:'구매 링크'};
+const PRODUCT_FIELD_LABELS:Record<string,string>={storeName:'상점명',name:'상품명',category:'카테고리',color:'색상',colorHex:'3D 표시 색상',photoShape:'사진 실루엣',features:'핵심 특징',material:'소재',priceKrw:'판매가',stock:'재고',purchaseUrl:'구매 링크'};
 const MEASUREMENT_LABELS:Record<string,string>=Object.fromEntries(Object.values(SELLER_MEASUREMENT_FIELDS).flat().map(field=>[field.key,field.label]));
 
 export function describeSellerProductIssue(path:ReadonlyArray<string|number>,sizes:ReadonlyArray<{label:string}>){

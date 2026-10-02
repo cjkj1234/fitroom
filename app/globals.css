@@ -247,3 +247,7 @@
 .fit-legend p{margin:5px 0 0;font-size:11px;line-height:1.45;color:#8a8a8a}
 .fit-legend~.garment-hint{bottom:150px}
 @media (max-width:720px){.stage-top-actions .stage-badge{display:none}.fit-legend{left:12px;right:62px;bottom:56px;padding:7px 9px}.fit-legend ul{gap:3px 10px}}
+/* 사진 실루엣 미리보기: 사진에서 잰 몸판 윤곽(위 겨드랑이, 아래 밑단) */
+.seller-shape-preview{width:46px;height:66px;flex:none;background:#f6f5f2;border:1px solid #e3e0da;border-radius:6px}
+.seller-shape-preview polygon{fill:#c8c2b6;stroke:#6f685c;stroke-width:1}
+.seller-shape-preview line{stroke:#d9534f;stroke-width:1;stroke-dasharray:2 2}
