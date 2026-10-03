@@ -7,6 +7,7 @@ import {estimateFit,wear,remove} from './fit';
 import {makeGarment,disposeGroup} from './geometry';
 import {ellipseCircumference,estimatePhotoBody,type PhotoEvidence} from './photo-estimate';
 import {validateWearRequests} from './webmcp';
+import type {Product} from './types';
 
 test('catalog contains eight small-shop demo products and valid available default sizes',()=>{
  assert.equal(PRODUCTS.length,8);assert.equal(new Set(PRODUCTS.map(p=>p.id)).size,8);
@@ -45,17 +46,46 @@ test('storage hydration strips unrecognized fields, including photo payloads',()
  const b={...cloneBody(DEFAULT_BODY),photo:'secret',measurements:{...DEFAULT_BODY.measurements,photo:'secret'}};
  assert.equal(JSON.stringify(parseStoredBody(JSON.stringify(b))).includes('secret'),false);
 });
-test('3D garment dimensions do not expand when body girth increases',()=>{
- const p=PRODUCTS[0],a=makeGarment(p,p.sizes[1],DEFAULT_BODY),b=makeGarment(p,p.sizes[1],setMeasurement(DEFAULT_BODY,'chest',140,'manual'));
- const aa=new THREE.Box3().setFromObject(a).getSize(new THREE.Vector3()),bb=new THREE.Box3().setFromObject(b).getSize(new THREE.Vector3());assert.ok(aa.distanceTo(bb)<1e-8);disposeGroup(a);disposeGroup(b);
+test('garment size stays the product size: only where a larger body would poke through is the 3D shell pushed out',()=>{
+ const p=PRODUCTS[0],size=p.sizes[1];
+ const base=makeGarment(p,size,DEFAULT_BODY),big=makeGarment(p,size,setMeasurement(DEFAULT_BODY,'chest',140,'manual'));
+ // 소매는 진동 위치와 길이가 체형에 따라 달라지므로 몸판 조각의 폭으로 비교한다.
+ const width=(g:THREE.Group)=>new THREE.Box3().setFromObject(g.getObjectByName('top-body')!).getSize(new THREE.Vector3()).x;
+ assert.ok(width(big)>width(base),'몸이 옷보다 크면 그 높이의 옷 껍질을 몸 바깥으로 민다');
+ // 핏 보기의 여유는 옷 실측 둘레에서 3D 몸 둘레를 뺀 값이라 가슴이 44cm 커지면 그만큼 줄어든다(모프 가중치 0.88).
+ const gain=base.userData.fitEase.chest-big.userData.fitEase.chest;
+ assert.ok(Math.abs(gain-44)<3,`가슴 여유 감소 ${gain}cm`);
+ // 숫자 핏 카드는 3D 껍질과 무관하게 상품 실측과 입력 치수로만 계산한다.
+ assert.deepEqual(estimateFit(DEFAULT_BODY,p,size).map(item=>item.label),estimateFit(setMeasurement(DEFAULT_BODY,'chest',140,'manual'),p,size).map(item=>item.label));
+ disposeGroup(base);disposeGroup(big);
+});
+test('fit view paints tight rings red, roomy rings green or blue, and leaves uncertain parts grey',()=>{
+ const tee=PRODUCTS.find(item=>item.slot==='top')!;
+ const chestColor=(chestFlat:number)=>{
+  const g=makeGarment(tee,{...tee.sizes[0],chestFlat},DEFAULT_BODY,false,{fitView:true}),mesh=g.children[0] as THREE.Mesh;
+  const position=mesh.geometry.getAttribute('position'),color=mesh.geometry.getAttribute('color');
+  let best=0;for(let i=0;i<position.count;i++)if(Math.abs(position.getY(i)-1.3)<Math.abs(position.getY(best)-1.3))best=i;
+  const out={r:color.getX(best),g:color.getY(best),b:color.getZ(best),ease:g.userData.fitEase.chest as number};disposeGroup(g);return out;
+ };
+ const tight=chestColor(40),roomy=chestColor(66);
+ assert.ok(tight.ease<0&&tight.r>tight.g&&tight.r>tight.b,`작은 옷은 빨강 (${JSON.stringify(tight)})`);
+ assert.ok(roomy.ease>12&&roomy.b>roomy.r,`큰 옷은 파랑 쪽 (${JSON.stringify(roomy)})`);
+ const plain=makeGarment(tee,tee.sizes[0],DEFAULT_BODY),mesh=plain.children[0] as THREE.Mesh;
+ assert.equal(mesh.geometry.getAttribute('color'),undefined,'핏 보기를 끄면 정점 색이 없다');disposeGroup(plain);
+ const cap=PRODUCTS.find(item=>item.slot==='hat'&&item.adjustableHat);
+ if(cap){const g=makeGarment(cap,cap.sizes[0],DEFAULT_BODY,false,{fitView:true});assert.equal(g.userData.fitEase.head,undefined,'조절형 모자는 판단 보류');disposeGroup(g);}
 });
 test('each garment group is named after its product so a 3D click can identify it',()=>{
  for(const p of PRODUCTS){const g=makeGarment(p,p.sizes[0],DEFAULT_BODY);assert.equal(g.name,p.id);disposeGroup(g);}
 });
 test('garments include trim details beyond the main body mesh',()=>{
  const count=(slot:string)=>{const p=PRODUCTS.find(item=>item.slot===slot)!,g=makeGarment(p,p.sizes[0],DEFAULT_BODY);let meshes=0;g.traverse(o=>{if(o instanceof THREE.Mesh)meshes++;});disposeGroup(g);return meshes;};
- assert.ok(count('top')>=8,'top: body, hem, collar, sleeves with cuffs and caps');
- assert.ok(count('bottom')>=12,'bottom: seat, legs, hems, waistband, belt loops, fly');
+ assert.ok(count('top')>=7,'top: body, hem, collar, sleeves with cuffs');
+ // 소매는 진동 둘레에서 바로 이어지는 곡면이라 어깨 위에 따로 얹는 공 모양 캡이 없다.
+ const tee=PRODUCTS.find(item=>item.slot==='top')!,g=makeGarment(tee,tee.sizes[0],DEFAULT_BODY),meshes:THREE.Mesh[]=[];g.traverse(o=>{if(o instanceof THREE.Mesh)meshes.push(o);});
+ assert.equal(meshes.filter(m=>m.name==='sleeve').length,2,'양쪽 소매');
+ assert.equal(meshes.filter(m=>m.geometry instanceof THREE.SphereGeometry).length,0,'어깨 캡 없음');disposeGroup(g);
+ assert.ok(count('bottom')>=10,'bottom: one-piece trousers (seat and legs), hems, waistband, belt loops, fly');
  assert.ok(count('hat')>=10,'hat: crown, seams, button, band, brim and rim');
 });
 test('all garment variants generate finite geometry',()=>{for(const p of PRODUCTS)for(const s of p.sizes){const g=makeGarment(p,s,DEFAULT_BODY);g.traverse(o=>{if(o instanceof THREE.Mesh)assert.ok(Array.from(o.geometry.getAttribute('position').array).every(Number.isFinite));});disposeGroup(g);}});
@@ -79,4 +109,15 @@ test('photo input must be finite and within the supported height range',()=>asse
 test('WebMCP rejects invalid batches atomically',()=>{
  assert.deepEqual(validateWearRequests({items:[{productId:'3777371',size:'M'}]}),[{productId:'3777371',size:'M'}]);
  assert.throws(()=>validateWearRequests({items:[{productId:'3777371',size:'M'},{productId:'6170660',size:'M'}]}));assert.throws(()=>validateWearRequests({items:[{productId:'3777371',size:'missing'}]}));
+});
+
+test('오픈카라 셔츠의 카라는 목둘레에서 서 있다가 접혀 눕는 띠이고, 앞 V 가장자리에 라펠이 있다',()=>{
+ const shirt:Product={...PRODUCTS.find(item=>item.slot==='top')!,id:'collar-shirt',style:'shirt'};
+ const g=makeGarment(shirt,shirt.sizes[0],DEFAULT_BODY),panel=g.getObjectByName('top-body') as THREE.Mesh;
+ const neckTop=new THREE.Box3().setFromObject(panel).max.y,patches:THREE.Mesh[]=[];g.traverse(o=>{if(o instanceof THREE.Mesh&&o.geometry.getAttribute('position').count===(48+1)*(10+1))patches.push(o);});
+ assert.equal(patches.length,1,'카라 띠 하나(목 뒤를 돌아 앞까지)');
+ const collar=new THREE.Box3().setFromObject(patches[0]);
+ assert.ok(collar.max.y-neckTop>.015,`스탠드가 목선보다 ${((collar.max.y-neckTop)*100).toFixed(1)}cm 위로 선다`);
+ assert.ok(neckTop-collar.min.y>.06,`폴과 카라 끝이 목선 아래 ${((neckTop-collar.min.y)*100).toFixed(1)}cm까지 눕는다`);
+ disposeGroup(g);
 });

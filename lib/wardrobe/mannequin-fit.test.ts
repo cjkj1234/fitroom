@@ -14,6 +14,8 @@ const now='2026-09-29T00:00:00.000Z';
 const sellerBase={version:1 as const,storeName:'테스트상점',material:null,priceKrw:10000,stock:1,purchaseUrl:null,createdAt:now,updatedAt:now,status:'published' as const,publishedAt:now};
 const SELLER_SAMPLES:SellerProduct[]=[
  {...sellerBase,id:'shirt',name:'오픈카라 반팔 셔츠',category:'top',color:'카키',colorHex:'#787260',features:['오픈카라','단추 여밈','왼쪽 가슴 포켓','루즈 핏'],sizes:[{...emptySellerSize('M'),length:72,chestFlat:58,shoulder:52,sleeve:24}]},
+ // 같은 셔츠에 실제 평면 사진에서 잰 몸판 실루엣(비율 숫자만)을 넣은 경우.
+ {...sellerBase,id:'shirt-photo',name:'오픈카라 반팔 셔츠',category:'top',color:'카키',colorHex:'#787260',features:['오픈카라','단추 여밈','왼쪽 가슴 포켓','루즈 핏'],sizes:[{...emptySellerSize('M'),length:72,chestFlat:58,shoulder:52,sleeve:24}],photoShape:{version:1,bodyWidths:[1,1.005,1.015,1.03,1.04,1.045,1.055,1.06,1.07,1.07,1.04],armpit:.505,lengthToChest:1.635}},
  {...sellerBase,id:'cargo',name:'카펜터 와이드 하프 팬츠',category:'bottom',color:'카키',colorHex:'#736249',features:['와이드 핏','뒷면 패치 포켓','옆 카고 포켓'],sizes:[{...emptySellerSize('M'),length:58,waistFlat:40,hipsFlat:60,thighFlat:38,rise:33}]},
 ];
 
