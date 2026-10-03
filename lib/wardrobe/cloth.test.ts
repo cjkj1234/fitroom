@@ -106,3 +106,21 @@ for(const [name,body,id] of BOTTOM_CASES){
   disposeGroup(group);
  });
 }
+
+// 핏 지도: 상품 실측 크기로 늘어뜨리므로, 몸보다 작은 옷은 가슴 띠가 몸에 닿아 늘어나고(끼임), 큰 옷은 몸에서 뜬다.
+test('작은 상의는 가슴 띠가 몸에 닿아 늘어나고, 넉넉한 상의는 몸에서 떠 핏 지도가 다르게 나온다',t=>{
+ const summary=(chestFlat:number)=>{
+  const size={...tee.sizes.find(item=>item.label===tee.defaultSize)!,chestFlat},group=makeGarment(tee,size,DEFAULT_BODY,false,{fine:true});
+  drapeTop(group,mesh,DEFAULT_BODY);
+  const panel=group.getObjectByName('top-body') as THREE.Mesh,measured=panel.geometry.getAttribute('measured'),fit=panel.userData.fit as Float32Array;
+  let count=0,tight=0,gap=0;for(let i=0;i<measured.count;i++){if(!measured.getX(i))continue;count++;gap+=fit[i*2];if(fit[i*2]<.005&&fit[i*2+1]>.03)tight++;}
+  disposeGroup(group);return {count,tight:tight/count,gap:gap/count};
+ };
+ // 기본 체형 가슴 96cm: 가슴단면 42(둘레 84cm)는 12cm 작고, 60(120cm)은 24cm 크다.
+ const small=summary(42),roomy=summary(60);
+ t.diagnostic(`작은 옷 끼임 ${(small.tight*100).toFixed(0)}%·평균 틈 ${(small.gap*100).toFixed(1)}cm, 넉넉한 옷 끼임 ${(roomy.tight*100).toFixed(0)}%·평균 틈 ${(roomy.gap*100).toFixed(1)}cm`);
+ assert.ok(small.count>100&&roomy.count>100,'가슴 띠 실측 정점');
+ assert.ok(small.tight>.4,`작은 옷의 끼임 비율 ${small.tight}`);
+ assert.ok(roomy.tight<.05,`넉넉한 옷의 끼임 비율 ${roomy.tight}`);
+ assert.ok(roomy.gap>small.gap+.01,`넉넉한 옷이 더 뜬다 ${roomy.gap} > ${small.gap}`);
+});
