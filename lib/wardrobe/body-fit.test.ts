@@ -14,6 +14,8 @@ const mesh=parseMannequin(new Uint8Array(readFileSync(new URL('../../public/mode
 const mixed=cloneBody(DEFAULT_BODY);Object.assign(mixed.measurements,{height:168,chest:104,waist:96,hips:104,shoulders:44,legLength:98});
 // 실제 평면 셔츠 사진에서 잰 몸판 실루엣(비율 숫자만)을 넣은 상의도 같은 기준으로 검사한다.
 const PHOTO_SHIRT:Product={...PRODUCTS.find(item=>item.slot==='top')!,id:'photo-shirt',name:'사진 실루엣 셔츠',photoShape:{version:1,bodyWidths:[1,1.005,1.015,1.03,1.04,1.045,1.055,1.06,1.07,1.07,1.04],armpit:.505,lengthToChest:1.635}};
+// 평면 바지 사진 실루엣(밑단이 허벅지의 60%로 좁아지는 테이퍼드)을 넣은 하의도 같은 기준으로 검사한다.
+const PHOTO_PANTS:Product={...PRODUCTS.find(item=>item.slot==='bottom'&&item.silhouette==='straight')!,id:'photo-pants',name:'사진 실루엣 바지',legShape:{version:1,legWidths:[1,.95,.9,.85,.8,.75,.7,.65,.6],rise:.3,lengthToWaist:2.4,hipToWaist:1.2}};
 const BODIES:Array<[string,BodyProfile]>=[['160 마름',makePreset(160,'slim')],['175 큰 체형',makePreset(175,'broad')],['185 큰 체형',makePreset(185,'broad')],['168 혼합 입력',mixed]];
 
 test('중립 마네킹 단면 둘레는 보정 기준(가슴 96·허리 80·엉덩이 98·머리 57cm)과 같다',()=>{
@@ -64,7 +66,7 @@ const LIMITS:Record<string,number>={hat:.005,top:.06,bottom:.04};
 for(const [name,body] of BODIES){
  test(`${name}: 체형이 바뀌어도 몸이 옷 밖으로 뚫고 나오지 않는다`,t=>{
   const positions=bodyPositions(mesh,body);
-  for(const product of [...PRODUCTS,PHOTO_SHIRT]){
+  for(const product of [...PRODUCTS,PHOTO_SHIRT,PHOTO_PANTS]){
    const result=exposedShare(product,body,positions);
    t.diagnostic(`${product.name} 노출 ${(result.share*100).toFixed(2)}% (${result.exposed}/${result.tested})`);
    assert.ok(result.tested>60,`${product.name}: 검사 정점이 충분해야 한다 (${result.tested})`);

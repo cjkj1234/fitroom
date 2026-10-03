@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {cutOutGarment} from './photo-texture';
-import {analyzeTopSilhouette,measureTopSilhouette,SILHOUETTE_SAMPLES,type TopSilhouette} from './photo-silhouette';
+import {analyzeBottomSilhouette,analyzeTopSilhouette,LEG_SAMPLES,measureTopSilhouette,SILHOUETTE_SAMPLES,type BottomSilhouette,type TopSilhouette} from './photo-silhouette';
 import {sellerProductSchema} from './products';
 import {PRODUCTS} from '../wardrobe/catalog';
 import {DEFAULT_BODY} from '../wardrobe/body';
@@ -85,4 +85,63 @@ test('사진 실루엣이 있으면 3D 몸판 밑단이 사진 비율대로 좁�
  const again=makeGarment({...tee},size,DEFAULT_BODY);
  assert.equal(halfWidthAt(again,y),halfWidthAt(plain,y),'실루엣이 없으면 같은 모양');
  disposeGroup(plain);disposeGroup(shaped);disposeGroup(again);
+});
+
+// 평면 바지: 위끝 40, 가운데 x=200. waist=허리 폭, hip=엉덩이 폭(가랑이 위 riseAt*0.6), riseAt=위끝~가랑이(px), length=전체 길이,
+// thigh=가랑이에서 다리 한쪽 폭, hem=밑단 다리 한쪽 폭, gap=밑단에서 몸 가운데부터 다리 안쪽 선까지(px). 다리 안쪽 선은 가랑이에서 만난다.
+function trousers({waist=150,hip=176,riseAt=90,length=300,thigh=88,hem=88,gap=26}={}){
+ const top=40,c=200,crotch=top+riseAt,bottom=top+length,hipY=top+riseAt*.6;
+ return flatLay(400,380,[[[c-waist/2,top],[c+waist/2,top],[c+hip/2,hipY],[c+thigh,crotch],[c+gap+hem,bottom],[c+gap,bottom],[c,crotch],[c-gap,bottom],[c-gap-hem,bottom],[c-thigh,crotch],[c-hip/2,hipY]]]);
+}
+
+test('곧은 바지: 가랑이 위치·허리 대비 엉덩이·기장 비율을 재고 다리 폭은 내내 허벅지와 같다',()=>{
+ const result=analyzeBottomSilhouette(trousers()),shape=result.silhouette!;
+ assert.ok(shape,result.reason);
+ assert.equal(shape.legWidths.length,LEG_SAMPLES);
+ assert.ok(Math.abs(shape.rise-90/300)<.03,`가랑이 ${shape.rise}`);
+ assert.ok(Math.abs(shape.hipToWaist-176/150)<.05,`엉덩이/허리 ${shape.hipToWaist}`);
+ assert.ok(Math.abs(shape.lengthToWaist-300/150)<.06,`기장/허리 ${shape.lengthToWaist}`);
+ assert.ok(shape.legWidths.every(value=>Math.abs(value-1)<.06),`다리 ${shape.legWidths}`);
+});
+
+test('테이퍼드·부츠컷·반바지: 다리가 좁아지거나 넓어지는 정도와 짧은 기장을 잰다',()=>{
+ const tapered=analyzeBottomSilhouette(trousers({hem:52})).silhouette!,flared=analyzeBottomSilhouette(trousers({hem:112,gap:30})).silhouette!;
+ assert.ok(tapered&&flared,'측정');
+ assert.ok(Math.abs(tapered.legWidths[LEG_SAMPLES-1]-52/88)<.06,`테이퍼드 밑단 ${tapered.legWidths.at(-1)}`);
+ assert.ok(tapered.legWidths.every((value,i,all)=>i===0||value<=all[i-1]+.02),`테이퍼드는 아래로 갈수록 좁다 ${tapered.legWidths}`);
+ assert.ok(Math.abs(flared.legWidths[LEG_SAMPLES-1]-112/88)<.07,`부츠컷 밑단 ${flared.legWidths.at(-1)}`);
+ const shorts=analyzeBottomSilhouette(trousers({length:150,riseAt:80,gap:20})),short=shorts.silhouette!;
+ assert.ok(short,shorts.reason);
+ assert.ok(Math.abs(short.lengthToWaist-150/150)<.05&&Math.abs(short.rise-80/150)<.04,`반바지 ${short.lengthToWaist} ${short.rise}`);
+});
+
+test('두 다리를 붙여 놓았거나 다리가 없는 모양은 가랑이를 찾지 못했다고 이유와 함께 알린다',()=>{
+ const touching=analyzeBottomSilhouette(trousers({gap:0}));
+ assert.equal(touching.silhouette,null);assert.match(touching.reason,/가랑이|다리/);
+ const skirt=analyzeBottomSilhouette(flatLay(300,300,[[[110,40],[190,40],[230,260],[70,260]]]));
+ assert.equal(skirt.silhouette,null);assert.match(skirt.reason,/가랑이/);
+});
+
+const legShape:BottomSilhouette={version:1,legWidths:[1,.95,.9,.85,.8,.75,.7,.65,.6],rise:.3,lengthToWaist:2.4,hipToWaist:1.2};
+test('판매자 하의는 바지 사진 실루엣 비율을 저장하고, 범위를 벗어난 값은 거부한다',()=>{
+ const now='2026-10-03T00:00:00.000Z';
+ const product={version:1,id:'p',storeName:'테스트상점',name:'테이퍼드 슬랙스',category:'bottom',color:'차콜',features:['테이퍼드'],material:null,priceKrw:null,stock:null,purchaseUrl:null,sizes:[],createdAt:now,updatedAt:now,status:'draft',publishedAt:null,legShape};
+ assert.equal(sellerProductSchema.safeParse(product).success,true);
+ assert.equal(sellerProductSchema.safeParse({...product,legShape:{...legShape,legWidths:legShape.legWidths.slice(1)}}).success,false,'9개가 아니면 거부');
+ assert.equal(sellerProductSchema.safeParse({...product,legShape:{...legShape,rise:.9}}).success,false,'가랑이 범위');
+ assert.equal(sellerProductSchema.safeParse({...product,legShape:null}).success,true);
+});
+
+test('바지 사진 실루엣이 있으면 3D 다리가 사진 비율대로 좁아지고, 실측 칸이 비면 사진 비율로 기장·밑위를 정한다',()=>{
+ const pants=PRODUCTS.find(item=>item.slot==='bottom'&&item.silhouette==='straight')!,size=pants.sizes.find(item=>item.label===pants.defaultSize)!;
+ const legRadiusAt=(group:THREE.Group,y:number)=>{const mesh=group.getObjectByName('bottom-body') as THREE.Mesh,position=mesh.geometry.getAttribute('position');let best=Infinity,low=Infinity,high=-Infinity;for(let i=0;i<position.count;i++){const x=position.getX(i);if(x<=0)continue;const d=Math.abs(position.getY(i)-y);if(d<best-1e-4){best=d;low=x;high=x;}else if(Math.abs(d-best)<1e-4){low=Math.min(low,x);high=Math.max(high,x);}}return (high-low)/2;};
+ const straight=makeGarment(pants,size,DEFAULT_BODY),shaped=makeGarment({...pants,legShape},size,DEFAULT_BODY);
+ // 무릎 아래(0.3m)에서 사진 실루엣(밑단이 허벅지의 60%)을 쓴 다리가 더 가늘다.
+ assert.ok(legRadiusAt(shaped,.3)<legRadiusAt(straight,.3)*.95,`0.3m 다리 반폭 ${legRadiusAt(shaped,.3)} < ${legRadiusAt(straight,.3)}`);
+ // 기장·밑위 실측이 없으면 사진 비율(기장 = 허리단면 × 2.4)로 정한다.
+ const bare={label:'M',waistFlat:40},noShape=makeGarment(pants,bare,DEFAULT_BODY),fromPhoto=makeGarment({...pants,legShape},bare,DEFAULT_BODY);
+ const lowest=(group:THREE.Group)=>new THREE.Box3().setFromObject(group.getObjectByName('bottom-body')!).min.y;
+ assert.ok(Math.abs(lowest(fromPhoto)-(DEFAULT_BODY.measurements.legLength-40*2.4)/100)<.01,`사진 기장 밑단 ${lowest(fromPhoto)}`);
+ assert.ok(Math.abs(lowest(noShape)-lowest(fromPhoto))>.05,'사진이 없으면 기본 기장(105cm)');
+ disposeGroup(straight);disposeGroup(shaped);disposeGroup(noShape);disposeGroup(fromPhoto);
 });

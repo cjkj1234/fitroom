@@ -369,11 +369,13 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
      const at=(y:number)=>{const r=radiiAt(rings,y);return {y,rx:r.rx+.0018,rz:r.rz+.0018,z:torsoZ(y),n:teeN(y)};};for(let y=bottom+.05;y<upper;y+=.04)group.add(ringMesh([at(y),at(y+.012)],stripeMat,segments));
    }
  } else if(product.slot==='bottom'){
-   const length=(size.length??105)/100,rise=(size.rise??30)/100;
-   const hipFlat=size.hipsFlat??((size.waistFlat??40)+12),hipCirc=hipFlat*2/100;
+   // 판매자가 평면 바지 사진에서 잰 실루엣(legShape)이 있으면, 실측이 빈 기장·밑위·엉덩이는 사진 비율로 채우고 다리 폭 변화를 사진대로 만든다.
+   const legShape=product.legShape,waistFlat=size.waistFlat??40;
+   const length=(size.length??(legShape?waistFlat*legShape.lengthToWaist:105))/100,rise=(size.rise??(legShape?legShape.rise*length*100:30))/100;
+   const hipFlat=size.hipsFlat??(legShape?waistFlat*legShape.hipToWaist:waistFlat+12),hipCirc=hipFlat*2/100;
    // 마네킹 골반은 앞뒤/좌우 비율이 약 0.65이므로 바지 단면도 그에 가깝게(0.68) 두어, 엉덩이가 넓은 바지가 위에 입은 상의를 뚫지 않게 한다.
    const [hipX,hipZ]=ellipseRadii(hipCirc,.68);
-   const [waistX,waistZ]=ellipseRadii((size.waistFlat??40)*2/100,.68);
+   const [waistX,waistZ]=ellipseRadii(waistFlat*2/100,.68);
    // 밑위 실측은 허리에서 가랑이까지 앞 솔기를 따라 잰 길이라 수직 높이보다 길다. 수직으로는 그 82%로 보고(가정), 몸 가랑이(몸통 단면이
    // 두 다리로 갈라지는 높이)보다 1.5cm 이상 아래에 둔다.
    let bodyCrotch=.83*k;for(let y=k;y>.6*k;y-=.005)if(!shape.torso(y)){bodyCrotch=y;break;}
@@ -394,7 +396,11 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
    const hemFlat=size.hemFlat??(wideLeg?(size.thighFlat!==undefined?size.thighFlat*.95:hipFlat*.62):24);
    const [hemX,hemZ]=ellipseRadii(hemFlat*2/100,.75);
    // Visual thigh radii are derived from hip partition, never used by numerical fit calculations.
-   const legProfile=profileRings([{y:hem,rx:hemX,rz:hemZ},{y:hem+.05,rx:hemX*1.005,rz:hemZ*1.005},{y:(hem+legTop)/2,rx:(hemX+hipX*.53)/2,rz:hipZ*.8},{y:legTop,rx:hipX*.53,rz:hipZ*.92}],Math.max(8,Math.ceil((legTop-hem)/step)));
+   // 사진 실루엣의 다리 폭은 허벅지 대비 비율이라 허벅지단면 실측(없으면 엉덩이단면의 62%로 어림)으로 크기를 정한다. 다리 단면은 앞뒤가 조금 깊은 타원(1.05)이다.
+   const thighFlat=size.thighFlat??hipFlat*.62;
+   const legControl:Ring[]=legShape?legShape.legWidths.map((ratio,i)=>{const [rx,rz]=ellipseRadii(thighFlat*ratio*2/100,1.05);return {y:legTop-(legTop-hem)*i/(legShape.legWidths.length-1),rx,rz};})
+     :[{y:hem,rx:hemX,rz:hemZ},{y:hem+.05,rx:hemX*1.005,rz:hemZ*1.005},{y:(hem+legTop)/2,rx:(hemX+hipX*.53)/2,rz:hipZ*.8},{y:legTop,rx:hipX*.53,rz:hipZ*.92}];
+   const legProfile=profileRings(legControl,Math.max(8,Math.ceil((legTop-hem)/step)));
    const leg=legProfile.map(r=>({...r,rx:Math.max(r.rx,legMin(r.y).rx),rz:Math.max(r.rz,legMin(r.y).rz)}));
    // 마네킹 다리는 위쪽에서 아래로 갈수록 바깥으로 벌어지므로, 다리 고리의 중심을 높이별 다리 중심선에 맞춘다.
    const legs=[-1,1].map(s=>{

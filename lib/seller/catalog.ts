@@ -51,7 +51,7 @@ export function sellerProductToWardrobeProduct(product:SellerProduct,frontTextur
  const descriptor=[product.name,...product.features,product.material??''].join(' ').toLowerCase();
  return {
   id:`seller:${product.id}`,sellerProductId:product.id,source:'seller',slot:product.category,
-  brand:product.storeName,name:product.name,color:product.colorHex??sellerColorToHex(product.color),colorName:product.color,style:sellerStyle(product),frontTexture:product.category==='top'?frontTexture:undefined,photoShape:product.category==='top'?product.photoShape??undefined:undefined,
+  brand:product.storeName,name:product.name,color:product.colorHex??sellerColorToHex(product.color),colorName:product.color,style:sellerStyle(product),frontTexture:product.category==='top'?frontTexture:undefined,photoShape:product.category==='top'?product.photoShape??undefined:undefined,legShape:product.category==='bottom'?product.legShape??undefined:undefined,
   url:product.purchaseUrl??'',checkedAt:product.updatedAt.slice(0,10),sizes:product.sizes.map(compactSize),defaultSize:product.sizes[0].label,
   silhouette:silhouette(product),elasticWaist:product.category==='bottom'&&(descriptor.includes('밴딩')||descriptor.includes('고무')),
   adjustableHat:product.category==='hat'&&(descriptor.includes('조절')||descriptor.includes('스트랩')),

@@ -1,4 +1,4 @@
-import type { TopSilhouette } from '../seller/photo-silhouette';
+import type { BottomSilhouette, TopSilhouette } from '../seller/photo-silhouette';
 
 export type Slot = 'hat' | 'top' | 'bottom';
 export type InputSource = 'simple' | 'manual' | 'photo';
@@ -19,6 +19,8 @@ export type Product = {
   frontTexture?: string;
   // 판매자가 평면 촬영한 상의 사진에서 잰 몸판 실루엣 비율. 있으면 3D 상의 몸판 폭·겨드랑이 위치를 사진 모양대로 만든다.
   photoShape?: TopSilhouette;
+  // 판매자가 평면 촬영한 바지 사진에서 잰 다리 폭·밑위·기장 비율. 있으면 3D 바지 다리가 사진처럼 좁아지거나 넓어지고, 실측이 빈 칸은 이 비율로 채운다.
+  legShape?: BottomSilhouette;
   elasticWaist?: boolean; adjustableHat?: boolean; note?: string;
   measurementBasis?: string; image: string; source: 'demo' | 'seller';
   sellerProductId?: string; priceKrw?: number; stock?: number;
