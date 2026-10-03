@@ -84,10 +84,13 @@ for(const [name,body,id] of BOTTOM_CASES){
   const size=product.sizes.find(item=>item.label===product.defaultSize)!,group=makeGarment(product,size,body,false,{fine:true}),k=body.measurements.height/175;
   const panel=group.getObjectByName('bottom-body') as THREE.Mesh,position=panel.geometry.getAttribute('position'),[pinFrom,pinTo]=panel.userData.pinned as [number,number];
   const waistBefore=Float32Array.from({length:(pinTo-pinFrom)*3},(_,i)=>position.array[pinFrom*3+i]);
+  // 밑위 곡선(몸 가운데 x≈0, 0.5~0.9m)의 가장 낮은 점: 허리 끈(long range attachment)이 있으면 처음 높이에서 크게 처지지 않는다.
+  const crotchLow=()=>{let low=Infinity;for(let i=0;i<position.count;i++)if(Math.abs(position.getX(i))<.003&&position.getY(i)>.5*k&&position.getY(i)<.9*k)low=Math.min(low,position.getY(i));return low;},crotchBefore=crotchLow();
   const result=drapeBottom(group,mesh,body)!;
   t.diagnostic(`${result.ms}ms, 입자 ${result.particles}, 평균 늘어남 ${(result.strainMean*100).toFixed(1)}%`);
   group.traverse(o=>{if(o instanceof THREE.Mesh)assert.ok(Array.from(o.geometry.getAttribute('position').array).every(Number.isFinite),`${o.name} 좌표`);});
   assert.ok(result.strainMean<.03,`평균 늘어남 ${(result.strainMean*100).toFixed(1)}%`);
+  assert.ok(crotchBefore-crotchLow()<.03,`가랑이 처짐 ${((crotchBefore-crotchLow())*100).toFixed(1)}cm`);
   for(let i=0;i<waistBefore.length;i++)assert.equal(position.array[pinFrom*3+i],waistBefore[i],'허리밴드 높이 고리는 고정');
   let lowest=Infinity;for(let i=0;i<position.count;i++)lowest=Math.min(lowest,position.getY(i));
   assert.ok(lowest>=-.001,`가장 낮은 점 ${(lowest*100).toFixed(1)}cm (바닥 0)`);

@@ -97,11 +97,6 @@ function patch(point:(u:number,v:number)=>THREE.Vector3,nu:number,nv:number,mate
  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));if(uv)geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));geometry.setIndex(indices);geometry.computeVertexNormals();
  const mesh=new THREE.Mesh(geometry,material);mesh.castShadow=true;mesh.receiveShadow=true;return mesh;
 }
-// 꼭짓점 목록과 삼각형 색인으로 만든 얇은 조각(카라 같은 비정형 모양).
-function flap(vertices:THREE.Vector3[],triangles:number[],material:THREE.Material){
- const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices.flatMap(v=>[v.x,v.y,v.z]),3));geometry.setIndex(triangles);geometry.computeVertexNormals();
- const mesh=new THREE.Mesh(geometry,material);mesh.castShadow=true;mesh.receiveShadow=true;return mesh;
-}
 // 밑단·소매단·카라 같은 띠는 같은 곡선 위의 두 높이를 잡아 반지름을 아주 조금 키워 겹친다. center는 그 높이의 중심 위치.
 function bandRings(rings:Ring[],y0:number,y1:number,pad=.0016,center?:(y:number)=>{x?:number;z?:number;n?:number}):Ring[]{
  return [y0,y1].map(y=>{const r=radiiAt(rings,y);return {y,rx:r.rx+pad,rz:r.rz+pad,...(center?center(y):{})};});
@@ -278,14 +273,32 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
    const textured=Boolean(options.frontTexture);
    if(!shirt)group.add(ringMesh(rings.filter(r=>r.y>=top-.031).map(r=>({...r,rx:r.rx+.0016,rz:r.rz+.0016})),trim,segments));
    else{
-     // 오픈카라: 앞 V 가장자리를 따라 넓게 젖혀진 카라 두 장. 바깥 끝으로 갈수록 살짝 들뜬다. 사진 텍스처를 입히면 사진 속 카라를 쓴다.
-     const lift=(x:number,y:number,offset:number)=>new THREE.Vector3(x,y,surfaceZ(rings,x,y,1,offset));
+     // 오픈카라(캠프 칼라): 목둘레에 붙어 목 뒤에서 2.4cm 서 있다가(스탠드) 둥글게 바깥으로 접혀 어깨·등에 눕는(폴) 띠다.
+     // 앞쪽 끝은 V 목선이 시작되는 곳(목선 각도로 가운데에서 ±0.75rad)에서 끝나며, 폴이 길어져 뾰족한 카라 끝이 가슴에 눕는다.
+     // 그 아래 V 가장자리는 바깥으로 젖혀진 라펠이다. 사진 텍스처를 입히면 앞쪽은 사진 속 카라를 쓰고 목 뒤 띠만 그린다.
+     const neckRing=rings[rings.length-1],neckZ=neckRing.z??0;
+     const ringPoint=(r:{rx:number;rz:number;z:number;n:number},y:number,a:number,offset:number)=>{const c=Math.cos(a),sn=Math.sin(a),p=2/r.n;return new THREE.Vector3((r.rx+offset)*Math.sign(c)*Math.pow(Math.abs(c),p),y,r.z+(r.rz+offset)*Math.sign(sn)*Math.pow(Math.abs(sn),p));};
+     const neckline=(a:number,offset:number)=>ringPoint({rx:neckRing.rx,rz:neckRing.rz,z:neckZ,n:neckRing.n??2},top+(neckRing.dy?neckRing.dy(a):0),a,offset);
+     // 몸판 겉면 위 점: 목선에서 d만큼 아래 높이의 고리에서 같은 각도.
+     const below=(a:number,y:number,offset:number)=>ringPoint(radiiAt(rings,y),y,a,offset);
+     const gorge=.75,span=Math.PI*2-gorge*2,from=textured?.2:0,to=textured?.8:1;
+     const collar=(u:number,v:number)=>{
+      const along=from+(to-from)*u,a=Math.PI/2+gorge+along*span,tip=1-Math.min(1,Math.min(along,1-along)/.14);
+      const stand=.024-.014*tip,fall=.045+.035*tip*tip,seam=neckline(a,.002),out=new THREE.Vector3(seam.x,0,seam.z-neckZ).normalize(),up=new THREE.Vector3(0,1,0);
+      // v 0~0.3: 스탠드(바깥으로 조금 기울며 선다), 0.3~0.45: 둥근 접힘, 0.45~1: 폴(스탠드 바깥 1cm에서 내려와 몸판 위 1cm에 눕는다).
+      if(v<=.3){const t=v/.3;return seam.clone().addScaledVector(out,.004*t).addScaledVector(up,stand*t);}
+      if(v<=.45){const phi=Math.PI*(1-(v-.3)/.15),center=seam.clone().addScaledVector(out,.007).addScaledVector(up,stand);return center.addScaledVector(out,.003*Math.cos(phi)).addScaledVector(up,.003*Math.sin(phi));}
+      const t=(v-.45)/.55,d=t*(stand+fall)-stand;
+      return d<=0?seam.clone().addScaledVector(out,.01).addScaledVector(up,-d):below(a,seam.y-d,.01+.003*t);
+     };
+     group.add(patch(collar,options.fine?72:48,10,trim));
      if(!textured)for(const s of [-1,1]){
-       const corners=[[.006,top-.105,.004],[.052,top+.002,.006],[.114,top-.02,.011],[.09,top-.114,.015]].map(([x,y,o])=>lift(s*x,y,o));
-       group.add(flap(corners,s>0?[0,1,3,1,2,3]:[0,3,1,1,3,2],trim));
+      // 라펠: V 가장자리(카라 끝에서 첫 단추 위까지)를 따라 바깥으로 젖혀진 천. 위에서 3.2cm 폭으로 시작해 아래로 갈수록 좁아진다.
+      group.add(patch((u,v)=>{
+       const a=Math.PI/2+s*gorge*(1-u)*.98,edge=neckline(a,.003),width=.032*Math.pow(1-u,1.2)*v,x=edge.x+Math.sign(edge.x||s)*width,y=edge.y-width*.35;
+       return new THREE.Vector3(x,y,surfaceZ(rings,x,y,1,.004+.002*Math.sin(v*Math.PI)));
+      },12,3,trim));
      }
-     // 뒷목 카라 받침: 뒤쪽 반원만 목 둘레 띠로 둘러 카라가 목 뒤에서 이어지게 한다.
-     group.add(patch((u,v)=>{const a=Math.PI+u*Math.PI,r=radiiAt(rings,top-.014+v*.016);return new THREE.Vector3(Math.cos(a)*(r.rx+.002),top-.014+v*.016,r.z+Math.sin(a)*(r.rz+.002));},16,1,trim));
    }
    const sleeveLength=(size.sleeve??23)/100;
    // 소매: 몸판 겉면 위의 진동 둘레(어깨점~옷의 겨드랑이)에서 시작해, 이 체형의 팔 중심선(몸 단면 표의 팔 단면 중심, 팔꿈치에서 꺾인다)을

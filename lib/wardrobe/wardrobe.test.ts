@@ -7,6 +7,7 @@ import {estimateFit,wear,remove} from './fit';
 import {makeGarment,disposeGroup} from './geometry';
 import {ellipseCircumference,estimatePhotoBody,type PhotoEvidence} from './photo-estimate';
 import {validateWearRequests} from './webmcp';
+import type {Product} from './types';
 
 test('catalog contains eight small-shop demo products and valid available default sizes',()=>{
  assert.equal(PRODUCTS.length,8);assert.equal(new Set(PRODUCTS.map(p=>p.id)).size,8);
@@ -108,4 +109,15 @@ test('photo input must be finite and within the supported height range',()=>asse
 test('WebMCP rejects invalid batches atomically',()=>{
  assert.deepEqual(validateWearRequests({items:[{productId:'3777371',size:'M'}]}),[{productId:'3777371',size:'M'}]);
  assert.throws(()=>validateWearRequests({items:[{productId:'3777371',size:'M'},{productId:'6170660',size:'M'}]}));assert.throws(()=>validateWearRequests({items:[{productId:'3777371',size:'missing'}]}));
+});
+
+test('오픈카라 셔츠의 카라는 목둘레에서 서 있다가 접혀 눕는 띠이고, 앞 V 가장자리에 라펠이 있다',()=>{
+ const shirt:Product={...PRODUCTS.find(item=>item.slot==='top')!,id:'collar-shirt',style:'shirt'};
+ const g=makeGarment(shirt,shirt.sizes[0],DEFAULT_BODY),panel=g.getObjectByName('top-body') as THREE.Mesh;
+ const neckTop=new THREE.Box3().setFromObject(panel).max.y,patches:THREE.Mesh[]=[];g.traverse(o=>{if(o instanceof THREE.Mesh&&o.geometry.getAttribute('position').count===(48+1)*(10+1))patches.push(o);});
+ assert.equal(patches.length,1,'카라 띠 하나(목 뒤를 돌아 앞까지)');
+ const collar=new THREE.Box3().setFromObject(patches[0]);
+ assert.ok(collar.max.y-neckTop>.015,`스탠드가 목선보다 ${((collar.max.y-neckTop)*100).toFixed(1)}cm 위로 선다`);
+ assert.ok(neckTop-collar.min.y>.06,`폴과 카라 끝이 목선 아래 ${((neckTop-collar.min.y)*100).toFixed(1)}cm까지 눕는다`);
+ disposeGroup(g);
 });

@@ -94,6 +94,24 @@ export function drapeGarment(group:THREE.Group,sdf:BodySdf,settings:DrapeSetting
  const yokeFrom=typeof group.userData.yokeFrom==='number'?group.userData.yokeFrom as number:Infinity;
  const above=(list:Int32Array)=>{const out:number[]=[];for(let c=0;c<list.length/2;c++)if(x[list[c*2]+1]>yokeFrom&&x[list[c*2+1]+1]>yokeFrom)out.push(c);return Int32Array.from(out);};
  const yokeEdges=above(edgeList),yokeBends=above(bendList),edgeStart=Float64Array.from(edgeRest);
+ // 고정 입자가 있으면(바지 허리) 입자마다 가장 가까운 고정 입자와의 처음 거리를 넘지 않게 하는 끈(long range attachment,
+ // Kim et al. 2012)을 둔다. 늘어지거나 접히는 것은 그대로 두고, 밑위 곡선처럼 처음에 굽어 있던 천이 펴지며 가랑이가 처지거나
+ // 다리가 길게 늘어나는 것만 막는다.
+ const anchors:number[]=[],tetherList:number[]=[],tetherLength:number[]=[];
+ for(let p=0;p<n;p++)if(!inverseMass[p])anchors.push(p);
+ if(anchors.length)for(let p=0;p<n;p++){
+  if(!inverseMass[p])continue;
+  let best=-1,bestD=Infinity;for(const q of anchors){const d=(x[p*3]-x[q*3])**2+(x[p*3+1]-x[q*3+1])**2+(x[p*3+2]-x[q*3+2])**2;if(d<bestD){bestD=d;best=q;}}
+  tetherList.push(p*3,best*3);tetherLength.push(Math.sqrt(bestD));
+ }
+ const tethers=Int32Array.from(tetherList),tetherMax=Float64Array.from(tetherLength);
+ const tether=()=>{
+  for(let c=0,m=tetherMax.length;c<m;c++){
+   const a=tethers[c*2],b=tethers[c*2+1],dx=x[a]-x[b],dy=x[a+1]-x[b+1],dz=x[a+2]-x[b+2],length=Math.sqrt(dx*dx+dy*dy+dz*dz);
+   if(length<=tetherMax[c])continue;
+   const k=tetherMax[c]/length;x[a]=x[b]+dx*k;x[a+1]=x[b+1]+dy*k;x[a+2]=x[b+2]+dz*k;
+  }
+ };
  // 4) 시뮬레이션
  const h=1/settings.steps,total=Math.round(settings.seconds*settings.steps),gravity=9.81,damp=Math.exp(-settings.damping*h),sample=new Float64Array(4);
  // 제약마다 두 입자가 고침을 나눠 받는 몫(역질량 비율)을 미리 구해 둔다. 둘 다 고정이면 0이다.
@@ -154,6 +172,7 @@ export function drapeGarment(group:THREE.Group,sdf:BodySdf,settings:DrapeSetting
    x[i]+=velocity[i]*h;x[i+1]+=velocity[i+1]*h;x[i+2]+=velocity[i+2]*h;
   }
   for(let k=0;k<settings.iterations;k++){solve(edgeList,edgeRest,edgeShares,1);solve(stitchList,stitchRest,stitchShares,1);}
+  tether();
   // 굽힘은 약한 제약이라 두 단계에 한 번, 두 배 비율로 푼다.
   if(step%2===0)solve(bendList,bendRest,bendShares,Math.min(1,settings.bend*2));
   collide(settings.friction,step);
