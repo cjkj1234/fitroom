@@ -17,7 +17,7 @@ export type DrapeSettings={
  shrink:number;// 그때 쉬는 길이를 줄일 수 있는 한도(처음 길이에 대한 비율)
  floor:number;// 바닥 높이(m). 긴 바지 밑단이 바닥에 닿아 쌓인다
 };
-export const DRAPE_DEFAULTS:DrapeSettings={seconds:.9,steps:600,thickness:.003,bend:.004,friction:.6,damping:3,iterations:3,settle:.4,shrink:.7,floor:0};
+export const DRAPE_DEFAULTS:DrapeSettings={seconds:.6,steps:600,thickness:.003,bend:.004,friction:.6,damping:3,iterations:3,settle:.4,shrink:.7,floor:0};
 // 바지: 면 능직·데님처럼 저지보다 뻣뻣하게(굽힘 비율 3배) 하고, 허리는 고정하므로 어깨 맞춤은 쓰지 않는다.
 export const DRAPE_BOTTOM:DrapeSettings={...DRAPE_DEFAULTS,bend:.012,settle:0};
 // 시뮬레이션하는 옷 조각의 이름. 나머지 조각(밑단·카라·단추·주머니·사진 앞면 등)은 가장 가까운 천 삼각형에 붙여 따라 움직인다.
@@ -35,7 +35,8 @@ export function clothBounds(group:THREE.Group,margin=.06):Bounds|null{
  return {min:[box.min.x-margin,box.min.y-margin,box.min.z-margin],max:[box.max.x+margin,box.max.y+margin,box.max.z+margin]};
 }
 
-export function drapeGarment(group:THREE.Group,sdf:BodySdf,settings:DrapeSettings=DRAPE_DEFAULTS){
+// onProgress: 시뮬레이션 중간 모양을 보여 주고 싶을 때. progressEvery 단계마다 지금 모양을 옷 조각에 써 넣은 뒤 진행률(0~1)과 함께 부른다.
+export function drapeGarment(group:THREE.Group,sdf:BodySdf,settings:DrapeSettings=DRAPE_DEFAULTS,onProgress?:(done:number)=>void,progressEvery=30){
  const started=Date.now();
  group.updateMatrixWorld(true);
  const parts:THREE.Mesh[]=[],others:THREE.Mesh[]=[];
@@ -95,22 +96,29 @@ export function drapeGarment(group:THREE.Group,sdf:BodySdf,settings:DrapeSetting
  const yokeEdges=above(edgeList),yokeBends=above(bendList),edgeStart=Float64Array.from(edgeRest);
  // 4) 시뮬레이션
  const h=1/settings.steps,total=Math.round(settings.seconds*settings.steps),gravity=9.81,damp=Math.exp(-settings.damping*h),sample=new Float64Array(4);
- const solve=(list:Int32Array,rest:Float64Array,fraction:number)=>{
+ // 제약마다 두 입자가 고침을 나눠 받는 몫(역질량 비율)을 미리 구해 둔다. 둘 다 고정이면 0이다.
+ const sharesOf=(list:Int32Array)=>{const out=new Float64Array(list.length);for(let c=0;c<list.length;c+=2){const wa=inverseMass[list[c]/3],wb=inverseMass[list[c+1]/3],sum=wa+wb;if(sum){out[c]=wa/sum;out[c+1]=wb/sum;}}return out;};
+ const edgeShares=sharesOf(edgeList),bendShares=sharesOf(bendList),stitchShares=sharesOf(stitchList);
+ const solve=(list:Int32Array,rest:Float64Array,shares:Float64Array,fraction:number)=>{
   for(let c=0,m=rest.length;c<m;c++){
    const a=list[c*2],b=list[c*2+1],dx=x[b]-x[a],dy=x[b+1]-x[a+1],dz=x[b+2]-x[a+2],length=Math.sqrt(dx*dx+dy*dy+dz*dz);
-   const wa=inverseMass[a/3],wb=inverseMass[b/3],sum=wa+wb;if(length<1e-9||!sum)continue;
-   const s=fraction*(length-rest[c])/length/sum;
-   x[a]+=dx*s*wa;x[a+1]+=dy*s*wa;x[a+2]+=dz*s*wa;x[b]-=dx*s*wb;x[b+1]-=dy*s*wb;x[b+2]-=dz*s*wb;
+   if(length<1e-9)continue;
+   const s=fraction*(length-rest[c])/length,sa=s*shares[c*2],sb=s*shares[c*2+1];
+   x[a]+=dx*sa;x[a+1]+=dy*sa;x[a+2]+=dz*sa;x[b]-=dx*sb;x[b+1]-=dy*sb;x[b+2]-=dz*sb;
   }
  };
  // 몸과 충돌: 거리장이 두께보다 작으면 기울기 방향으로 밀어 내고, 이번 단계에 표면을 따라 미끄러진 만큼을 마찰로 줄인다.
  // 바닥(settings.floor)도 위쪽 법선을 가진 표면으로 같은 방식으로 처리한다.
- const collide=(friction:number)=>{
+ // 몸·바닥에서 멀리 떨어진 입자는 한 단계에 움직일 수 있는 거리(속도 상한의 3배, 600단계/초에서 7.5mm)로 닿을 수 없는 동안
+ // (최대 6단계) 거리장을 다시 읽지 않는다. step<0은 처음 겹침을 풀 때로, 모든 입자를 본다.
+ const wake=new Int32Array(n),stride=3*1.5/settings.steps;
+ const collide=(friction:number,step:number)=>{
   for(let i=0;i<n*3;i+=3){
-   if(!inverseMass[i/3])continue;
+   const p=i/3;if(!inverseMass[p]||step<wake[p])continue;
    const floorDepth=settings.floor+settings.thickness-x[i+1];
    sampleSdf(sdf,x[i],x[i+1],x[i+2],sample);
    let depth=settings.thickness-sample[0],nx=0,ny=1,nz=0;
+   if(depth<=0&&floorDepth<=0){wake[p]=step+1+Math.min(6,Math.floor(Math.min(-depth,-floorDepth)/stride));continue;}
    if(depth>0){const g=Math.sqrt(sample[1]*sample[1]+sample[2]*sample[2]+sample[3]*sample[3]);if(g<1e-6)depth=0;else{nx=sample[1]/g;ny=sample[2]/g;nz=sample[3]/g;}}
    if(floorDepth>depth){depth=floorDepth;nx=0;ny=1;nz=0;}
    if(depth<=0)continue;
@@ -122,10 +130,16 @@ export function drapeGarment(group:THREE.Group,sdf:BodySdf,settings:DrapeSetting
   }
  };
  // 처음 모양에서 몸 안에 들어간 점은 시간을 흘리기 전에 밖으로 빼 둔다(속도가 생기지 않게).
- for(let pass=0;pass<20;pass++){collide(0);solve(edgeList,edgeRest,1);solve(stitchList,stitchRest,1);}
- collide(0);
+ for(let pass=0;pass<20;pass++){collide(0,-1);solve(edgeList,edgeRest,edgeShares,1);solve(stitchList,stitchRest,stitchShares,1);}
+ collide(0,-1);wake.fill(0);
  // 한 단계 속도 상한(m/s). 몸에서 크게 밀려난 점이 튀어 나가 계산이 깨지지 않게 한다.
  const maxVelocity=1.5;
+ // 지금 입자 위치를 옷 조각에 써 넣고 덧붙은 조각을 따라 옮긴다. normals가 거짓이면(중간 모양) 법선 계산은 건너뛴다.
+ const writeBack=(normals:boolean)=>{
+  parts.forEach((mesh,p)=>{const position=mesh.geometry.getAttribute('position') as THREE.BufferAttribute,map=vertexParticle[p];for(let i=0;i<position.count;i++){const id=map[i]*3;position.setXYZ(i,x[id],x[id+1],x[id+2]);}position.needsUpdate=true;if(normals)smoothNormals(mesh.geometry);});
+  applyBindings(bindings,x,normals);
+ };
+ if(onProgress){writeBack(false);onProgress(0);}
  let maxSpeed=0;const settleSteps=Math.round(total*settings.settle);
  const lengthOf=(list:Int32Array,c:number)=>{const a=list[c*2],b=list[c*2+1];return Math.hypot(x[a]-x[b],x[a+1]-x[b+1],x[a+2]-x[b+2]);};
  for(let step=0;step<total;step++){
@@ -139,9 +153,10 @@ export function drapeGarment(group:THREE.Group,sdf:BodySdf,settings:DrapeSetting
    previous[i]=x[i];previous[i+1]=x[i+1];previous[i+2]=x[i+2];
    x[i]+=velocity[i]*h;x[i+1]+=velocity[i+1]*h;x[i+2]+=velocity[i+2]*h;
   }
-  for(let k=0;k<settings.iterations;k++){solve(edgeList,edgeRest,1);solve(stitchList,stitchRest,1);}
-  solve(bendList,bendRest,settings.bend);
-  collide(settings.friction);
+  for(let k=0;k<settings.iterations;k++){solve(edgeList,edgeRest,edgeShares,1);solve(stitchList,stitchRest,stitchShares,1);}
+  // 굽힘은 약한 제약이라 두 단계에 한 번, 두 배 비율로 푼다.
+  if(step%2===0)solve(bendList,bendRest,bendShares,Math.min(1,settings.bend*2));
+  collide(settings.friction,step);
   maxSpeed=0;
   for(let i=0;i<n*3;i+=3){
    let vx=(x[i]-previous[i])/h,vy=(x[i+1]-previous[i+1])/h,vz=(x[i+2]-previous[i+2])/h;
@@ -149,10 +164,10 @@ export function drapeGarment(group:THREE.Group,sdf:BodySdf,settings:DrapeSetting
    if(speed>maxVelocity){const k=maxVelocity/speed;vx*=k;vy*=k;vz*=k;}
    velocity[i]=vx;velocity[i+1]=vy;velocity[i+2]=vz;if(speed>maxSpeed)maxSpeed=speed;
   }
+  if(onProgress&&(step+1)%progressEvery===0&&step+1<total){writeBack(false);onProgress((step+1)/total);}
  }
  // 5) 결과를 조각에 되돌리고, 덧붙은 조각을 천을 따라 옮긴 뒤 법선을 다시 계산한다.
- parts.forEach((mesh,p)=>{const position=mesh.geometry.getAttribute('position') as THREE.BufferAttribute,map=vertexParticle[p];for(let i=0;i<position.count;i++){const id=map[i]*3;position.setXYZ(i,x[id],x[id+1],x[id+2]);}position.needsUpdate=true;smoothNormals(mesh.geometry);});
- applyBindings(bindings,x);
+ writeBack(true);
  // 요약: 모서리가 (어깨 맞춤 뒤의) 쉬는 길이보다 늘어나거나 줄어든 비율, 끝에도 0.2m/s보다 빨리 움직이는 입자 수(멈추지 않은 정도).
  let strainMax=0,strainSum=0;for(let c=0;c<edgeRest.length;c++){const a=edgeList[c*2],b=edgeList[c*2+1],length=Math.hypot(x[a]-x[b],x[a+1]-x[b+1],x[a+2]-x[b+2]),strain=edgeRest[c]>0?Math.abs(length/edgeRest[c]-1):0;strainSum+=strain;if(strain>strainMax)strainMax=strain;}
  let moving=0;for(let i=0;i<n;i++)if(Math.hypot(velocity[i*3],velocity[i*3+1],velocity[i*3+2])>.2)moving++;
@@ -194,7 +209,7 @@ function bindOthers(meshes:THREE.Mesh[],x:Float64Array,triangles:number[],allowe
  });
 }
 
-function applyBindings(bindings:Binding[],x:Float64Array){
+function applyBindings(bindings:Binding[],x:Float64Array,normals=true){
  const a=new THREE.Vector3(),b=new THREE.Vector3(),c=new THREE.Vector3(),normal=new THREE.Vector3(),plane=new THREE.Triangle(),p=new THREE.Vector3(),inverse=new THREE.Matrix4();
  for(const binding of bindings){
   const {mesh,triangle,weights,triangles}=binding,position=mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
@@ -205,7 +220,7 @@ function applyBindings(bindings:Binding[],x:Float64Array){
    p.set(0,0,0).addScaledVector(a,weights[i*4]).addScaledVector(b,weights[i*4+1]).addScaledVector(c,weights[i*4+2]).addScaledVector(normal,weights[i*4+3]).applyMatrix4(inverse);
    position.setXYZ(i,p.x,p.y,p.z);
   }
-  position.needsUpdate=true;smoothNormals(mesh.geometry);
+  position.needsUpdate=true;if(normals)smoothNormals(mesh.geometry);
  }
 }
 

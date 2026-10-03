@@ -10,16 +10,17 @@ import type {BodyProfile,Product,SizeMeasurements} from './types';
 // positions: 이미 늘어뜨린 하의의 조각별 정점 위치(makeGarment(…,{fine:true})의 조각 순서). 없으면 절차형 모양을 쓴다.
 export type UnderGarment={product:Product;size:SizeMeasurements;positions?:Float32Array[]};
 
-export function drapeBottom(group:THREE.Group,mannequin:MannequinMesh,body:BodyProfile,settings:DrapeSettings=DRAPE_BOTTOM){
+// onProgress: 중간 모양을 보여 줄 때(cloth.ts drapeGarment 참고).
+export function drapeBottom(group:THREE.Group,mannequin:MannequinMesh,body:BodyProfile,settings:DrapeSettings=DRAPE_BOTTOM,onProgress?:(done:number)=>void){
  const bounds=clothBounds(group,.08);if(!bounds)return null;
- return drapeGarment(group,buildBodySdf([{positions:bodyPositions(mannequin,body),indices:mannequin.indices}],bounds),settings);
+ return drapeGarment(group,buildBodySdf([{positions:bodyPositions(mannequin,body),indices:mannequin.indices}],bounds),settings,onProgress);
 }
 
-export function drapeTop(group:THREE.Group,mannequin:MannequinMesh,body:BodyProfile,under?:UnderGarment,settings:DrapeSettings=DRAPE_DEFAULTS){
+export function drapeTop(group:THREE.Group,mannequin:MannequinMesh,body:BodyProfile,under?:UnderGarment,settings:DrapeSettings=DRAPE_DEFAULTS,onProgress?:(done:number)=>void){
  const bounds=clothBounds(group);if(!bounds)return null;
  const colliders:SdfMesh[]=[{positions:bodyPositions(mannequin,body),indices:mannequin.indices}];
  if(under)colliders.push(...underColliders(under,body));
- return drapeGarment(group,buildBodySdf(colliders,bounds),settings);
+ return drapeGarment(group,buildBodySdf(colliders,bounds),settings,onProgress);
 }
 
 // 조각별 정점 위치를 옷 그룹에 그대로 넣는다(조각 수·정점 수가 같을 때만). 법선은 다시 계산한다.

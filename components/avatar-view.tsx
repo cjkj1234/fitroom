@@ -36,11 +36,12 @@ function writeFitView(on:boolean){try{window.sessionStorage.setItem(FIT_VIEW_KEY
 
 // 상의·하의는 먼저 절차형 모양으로 보여 주고, Worker에서 처짐 시뮬레이션이 끝나면 정점 위치를 바꿔 끼운다. 같은 옷·치수·체형이면 결과를 다시 쓴다.
 const drapeKey=(request:Omit<DrapeRequest,'key'>)=>JSON.stringify([{...request.product,frontTexture:undefined},request.size,request.body.measurements,request.fitView,request.textured,request.under&&[request.under.product.id,request.under.size]]);
-function applyDrape(group:THREE.Object3D,positions:Float32Array[]){
+// final이 거짓이면 시뮬레이션 중간 모양이다. 법선은 빠른 계산만 하고, 끝난 것으로 표시하지 않는다.
+function applyDrape(group:THREE.Object3D,positions:Float32Array[],final=true){
  const meshes:THREE.Mesh[]=[];group.traverse(o=>{if(o instanceof THREE.Mesh)meshes.push(o);});
  if(meshes.length!==positions.length||meshes.some((mesh,i)=>mesh.geometry.getAttribute('position').array.length!==positions[i].length))return false;
- meshes.forEach((mesh,i)=>{const attribute=mesh.geometry.getAttribute('position') as THREE.BufferAttribute;(attribute.array as Float32Array).set(positions[i]);attribute.needsUpdate=true;smoothNormals(mesh.geometry);});
- group.userData.draped=true;return true;
+ meshes.forEach((mesh,i)=>{const attribute=mesh.geometry.getAttribute('position') as THREE.BufferAttribute;(attribute.array as Float32Array).set(positions[i]);attribute.needsUpdate=true;if(final)smoothNormals(mesh.geometry);else{mesh.geometry.computeVertexNormals();mesh.geometry.computeBoundingSphere();}});
+ if(final)group.userData.draped=true;return true;
 }
 
 type StageApi={scene:THREE.Scene;camera:THREE.PerspectiveCamera;controls:OrbitControls;avatar:THREE.Group;clothes:THREE.Group;render:()=>void;clearHover:()=>void};
@@ -69,25 +70,34 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
    requestDrape(requests.sort((x,y)=>Number(x.product.slot==='top')-Number(y.product.slot==='top')));a.clearHover();a.render();
  }
  // 체형 슬라이더를 움직이는 동안에는 보내지 않고, 0.3초 멈추면 아직 없는 결과만 Worker에 맡긴다.
+ // Worker는 3D 화면이 열릴 때 미리 만들어 마네킹을 받아 두게 한다(첫 옷을 입힐 때 기다리는 시간을 줄인다).
+ function drapeWorkerReady(){
+  if(drapeWorker.current)return drapeWorker.current;
+  if(typeof Worker==='undefined')return null;
+  try{
+   const worker=new Worker(drapeWorkerUrl,{type:'module'});drapeWorker.current=worker;
+   worker.onmessage=(event:MessageEvent<DrapeResponse>)=>{
+    const response=event.data;
+    // 중간 모양: 아직 끝나지 않은 같은 옷에만 바로 그려 옷이 내려앉는 모습을 보여 준다.
+    if('positions' in response&&response.partial){const a=api.current;if(!a)return;a.clothes.children.forEach(group=>{if(group.userData.drapeKey===response.key&&!group.userData.draped)applyDrape(group,response.positions,false);});a.render();return;}
+    drapePending.current.delete(response.key);setDraping(drapePending.current.size>0);
+    if('error' in response){console.warn('옷 처짐 계산 실패',response.error);return;}
+    const cache=drapeCache.current;cache.set(response.key,response.positions);while(cache.size>16)cache.delete(cache.keys().next().value!);
+    const a=api.current;if(!a)return;
+    a.clothes.children.forEach(group=>{if(group.userData.drapeKey===response.key&&!group.userData.draped)applyDrape(group,response.positions);});a.render();
+   };
+   worker.onerror=()=>{drapePending.current.clear();setDraping(false);};
+   worker.postMessage({warm:true});
+   return worker;
+  }catch{return null;}
+ }
  function requestDrape(requests:DrapeRequest[]){
   if(drapeTimer.current!==null)window.clearTimeout(drapeTimer.current);
-  if(!requests.length||typeof Worker==='undefined')return;
+  if(!requests.length)return;
   drapeTimer.current=window.setTimeout(()=>{
    drapeTimer.current=null;
-   if(!drapeWorker.current){
-    try{
-     const worker=new Worker(drapeWorkerUrl,{type:'module'});drapeWorker.current=worker;
-     worker.onmessage=(event:MessageEvent<DrapeResponse>)=>{
-      const response=event.data;drapePending.current.delete(response.key);setDraping(drapePending.current.size>0);
-      if('error' in response){console.warn('옷 처짐 계산 실패',response.error);return;}
-      const cache=drapeCache.current;cache.set(response.key,response.positions);while(cache.size>16)cache.delete(cache.keys().next().value!);
-      const a=api.current;if(!a)return;
-      a.clothes.children.forEach(group=>{if(group.userData.drapeKey===response.key&&!group.userData.draped)applyDrape(group,response.positions);});a.render();
-     };
-     worker.onerror=()=>{drapePending.current.clear();setDraping(false);};
-    }catch{return;}
-   }
-   for(const request of requests){if(drapePending.current.has(request.key))continue;drapePending.current.add(request.key);drapeWorker.current.postMessage(request);}
+   const worker=drapeWorkerReady();if(!worker)return;
+   for(const request of requests){if(drapePending.current.has(request.key))continue;drapePending.current.add(request.key);worker.postMessage(request);}
    setDraping(drapePending.current.size>0);
   },300);
  }
@@ -137,6 +147,7 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
    const onLeave=()=>setHover(null);
    dom.addEventListener('pointerdown',onDown);dom.addEventListener('pointerup',onUp);dom.addEventListener('pointermove',onMove);dom.addEventListener('pointerleave',onLeave);
    api.current={scene,camera,controls,avatar,clothes,render,clearHover:()=>setHover(null)};
+   drapeWorkerReady();
    const resize=()=>{const w=el.clientWidth,h=el.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();render();};const observer=new ResizeObserver(resize);observer.observe(el);controls.addEventListener('change',render);resize();
    let disposed=false;new GLTFLoader().load('/models/mannequin.glb',g=>{if(disposed){disposeGroup(g.scene);return;}g.scene.traverse(o=>{if(o instanceof THREE.Mesh){o.material=new THREE.MeshPhysicalMaterial({color:'#d3cdc6',roughness:.58,clearcoat:.14,clearcoatRoughness:.5});o.castShadow=true;o.receiveShadow=true;}});avatar.add(g.scene);setStatus('ready');update();},undefined,()=>setStatus('error'));
    return()=>{disposed=true;if(drapeTimer.current!==null)window.clearTimeout(drapeTimer.current);drapeWorker.current?.terminate();drapeWorker.current=null;pending.clear();observer.disconnect();dom.removeEventListener('pointerdown',onDown);dom.removeEventListener('pointerup',onUp);dom.removeEventListener('pointermove',onMove);dom.removeEventListener('pointerleave',onLeave);controls.dispose();disposeGroup(scene);textureCache.current.forEach(texture=>texture.dispose());textureCache.current.clear();environment.dispose();pmrem.dispose();renderer.dispose();renderer.domElement.remove();api.current=null;};

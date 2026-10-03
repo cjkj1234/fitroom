@@ -10,12 +10,23 @@ export type Bounds={min:[number,number,number];max:[number,number,number]};
 export type SdfMesh={positions:Float32Array;indices:Uint32Array};
 export function buildBodySdf(meshes:SdfMesh[],bounds:Bounds,cell=.008,band=2):BodySdf{
  const [ox,oy,oz]=bounds.min,nx=Math.ceil((bounds.max[0]-ox)/cell)+1,ny=Math.ceil((bounds.max[1]-oy)/cell)+1,nz=Math.ceil((bounds.max[2]-oz)/cell)+1;
- const grid={origin:[ox,oy,oz] as [number,number,number],cell,nx,ny,nz},data=new Float32Array(nx*ny*nz).fill(Infinity);
- for(const mesh of meshes){const own=meshSdf(mesh,grid,band);for(let n=0;n<data.length;n++)if(own[n]<data[n])data[n]=own[n];}
- return {...grid,data};
+ const data=new Float32Array(nx*ny*nz).fill(Infinity);
+ for(const mesh of meshes)meshSdf(mesh,{origin:[ox,oy,oz],cell,nx,ny,nz},band,data);
+ // 어느 메시의 영역에도 들지 않은 칸은 모든 표면에서 멀리 떨어진 바깥이다.
+ for(let n=0;n<data.length;n++)if(data[n]===Infinity)data[n]=band*cell*4;
+ return {origin:[ox,oy,oz],cell,nx,ny,nz,data};
 }
 
-function meshSdf({positions,indices}:SdfMesh,{origin:[ox,oy,oz],cell,nx,ny,nz}:Omit<BodySdf,'data'>,band:number){
+// 메시 하나의 거리장을 그 메시를 둘러싼 작은 격자(메시 범위 + band+3칸)에서만 만들어 전체 격자(target)에 작은 값으로 합친다.
+// 벨트 고리처럼 작은 메시가 전체 격자를 다 훑지 않게 하기 위해서다. 범위 밖 칸은 이 메시와 멀어 합집합에 영향이 없다.
+function meshSdf({positions,indices}:SdfMesh,grid:Omit<BodySdf,'data'>,band:number,target:Float32Array){
+ const cell=grid.cell,margin=band+3;
+ let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity;
+ for(let i=0;i<positions.length;i+=3){minX=Math.min(minX,positions[i]);maxX=Math.max(maxX,positions[i]);minY=Math.min(minY,positions[i+1]);maxY=Math.max(maxY,positions[i+1]);minZ=Math.min(minZ,positions[i+2]);maxZ=Math.max(maxZ,positions[i+2]);}
+ const range=(low:number,high:number,origin:number,count:number)=>[Math.max(0,Math.floor((low-origin)/cell)-margin),Math.min(count-1,Math.ceil((high-origin)/cell)+margin)];
+ const [I0,I1]=range(minX,maxX,grid.origin[0],grid.nx),[J0,J1]=range(minY,maxY,grid.origin[1],grid.ny),[K0,K1]=range(minZ,maxZ,grid.origin[2],grid.nz);
+ if(I0>I1||J0>J1||K0>K1)return;
+ const ox=grid.origin[0]+I0*cell,oy=grid.origin[1]+J0*cell,oz=grid.origin[2]+K0*cell,nx=I1-I0+1,ny=J1-J0+1,nz=K1-K0+1;
  const at=(i:number,j:number,k:number)=>(j*nz+k)*nx+i,count=nx*ny*nz;
  const inside=new Uint8Array(count),data=new Float32Array(count).fill(Infinity);
  const reach=band*cell,triangles=indices.length/3;
@@ -65,8 +76,10 @@ function meshSdf({positions,indices}:SdfMesh,{origin:[ox,oy,oz],cell,nx,ny,nz}:O
  };
  for(let j=1;j<ny-1;j++)for(let k=1;k<nz-1;k++)for(let i=1;i<nx-1;i++)relax(at(i,j,k),1);
  for(let j=ny-2;j>=1;j--)for(let k=nz-2;k>=1;k--)for(let i=nx-2;i>=1;i--)relax(at(i,j,k),-1);
- for(let n=0;n<count;n++){const d=Number.isFinite(data[n])?data[n]:reach*4;data[n]=inside[n]?-d:d;}
- return data;
+ for(let j=0;j<ny;j++)for(let k=0;k<nz;k++)for(let i=0;i<nx;i++){
+  const n=at(i,j,k),d=Number.isFinite(data[n])?data[n]:reach*4,value=inside[n]?-d:d,g=((j+J0)*grid.nz+(k+K0))*grid.nx+(i+I0);
+  if(value<target[g])target[g]=value;
+ }
 }
 
 // 점 (px,py,pz)에서 삼각형 abc(positions 안의 시작 위치)까지의 거리. Ericson, Real-Time Collision Detection 5.1.5.
