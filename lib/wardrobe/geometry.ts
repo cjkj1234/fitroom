@@ -4,12 +4,28 @@ import type { BodyProfile, Product, SizeMeasurements } from './types';
 
 // n은 단면의 모양이다. 2는 타원이고, 커질수록 네모에 가까워져 몸통의 어깨·골반 모서리를 덮는다.
 // color는 핏 보기에서 그 고리에 칠할 색(여유 정도)이다.
-type Ring={y:number;rx:number;rz:number;x?:number;z?:number;n?:number;dy?:(angle:number)=>number;color?:THREE.Color};
+// rest: 상품 실측으로 정한 고리에서 실측 옷 둘레 ÷ 그린 둘레(1 이하). 몸이 옷보다 커서 그린 고리를 몸 바깥으로 넓혔으면 1보다 작다.
+// 천 시뮬레이션은 이 비율만큼 쉬는 길이를 줄여 실제 옷 크기로 몸에 당겨지게 한다(가정 모양 고리는 rest가 없다).
+// measured: 핏 보기가 실측으로 판단하는 높이(상의 가슴 띠·하의 엉덩이 띠)의 고리. 시뮬레이션 핏 지도도 이 고리만 칠한다.
+type Ring={y:number;rx:number;rz:number;x?:number;z?:number;n?:number;dy?:(angle:number)=>number;color?:THREE.Color;rest?:number;measured?:boolean};
+// 정점 속성 restScale(쉬는 둘레 비율, 기본 1)과 measured(1/0)를 붙인다. 고리 중 하나라도 rest나 measured가 있을 때만.
+function restAttributes(g:THREE.BufferGeometry,rings:Array<{rest?:number;measured?:boolean}>){
+ if(!rings.some(r=>r.rest!==undefined||r.measured))return;
+ g.setAttribute('restScale',new THREE.Float32BufferAttribute(rings.map(r=>r.rest??1),1));
+ g.setAttribute('measured',new THREE.Float32BufferAttribute(rings.map(r=>r.measured?1:0),1));
+}
+// 초타원 고리의 실제 둘레(64점 다각형).
+function ringPerimeter(r:Ring){
+ const p=2/(r.n??2);let length=0,px=0,pz=0;
+ for(let i=0;i<=64;i++){const a=i/64*Math.PI*2,c=Math.cos(a),s=Math.sin(a),x=r.rx*Math.sign(c)*Math.pow(Math.abs(c),p),z=r.rz*Math.sign(s)*Math.pow(Math.abs(s),p);if(i)length+=Math.hypot(x-px,z-pz);px=x;pz=z;}
+ return length;
+}
+const restOf=(rx:number,rz:number,drawn:Ring)=>Math.min(1,ellipsePerimeter(rx,rz)/ringPerimeter(drawn));
 export function ringMesh(rings:Ring[],material:THREE.Material,segments=64):THREE.Mesh {
  const vertices:number[]=[],uv:number[]=[],indices:number[]=[],colors:number[]=[],colored=rings.some(r=>r.color);
  rings.forEach((r,j)=>{const power=2/(r.n??2),c=r.color??NO_FIT_DATA;for(let i=0;i<=segments;i++){const a=i/segments*Math.PI*2,cos=Math.cos(a),sin=Math.sin(a);vertices.push((r.x??0)+r.rx*Math.sign(cos)*Math.pow(Math.abs(cos),power),r.y+(r.dy?r.dy(a):0),(r.z??0)+r.rz*Math.sign(sin)*Math.pow(Math.abs(sin),power));uv.push(i/segments,j/Math.max(1,rings.length-1));if(colored)colors.push(c.r,c.g,c.b);}});
  for(let j=0;j<rings.length-1;j++)for(let i=0;i<segments;i++){const a=j*(segments+1)+i,b=a+segments+1;indices.push(a,b,a+1,b,b+1,a+1);}
- const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));if(colored)g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));g.setIndex(indices);g.computeVertexNormals();
+ const g=new THREE.BufferGeometry();restAttributes(g,rings.flatMap(r=>Array(segments+1).fill(r)));g.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));if(colored)g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));g.setIndex(indices);g.computeVertexNormals();
  // 고리의 시작과 끝 정점은 위치가 같지만 법선이 달라 세로 줄이 보이므로 평균을 낸다.
  const normal=g.getAttribute('normal');
  for(let j=0;j<rings.length;j++){const first=j*(segments+1),last=first+segments;const nx=(normal.getX(first)+normal.getX(last))/2,ny=(normal.getY(first)+normal.getY(last))/2,nz=(normal.getZ(first)+normal.getZ(last))/2,length=Math.hypot(nx,ny,nz)||1;normal.setXYZ(first,nx/length,ny/length,nz/length);normal.setXYZ(last,nx/length,ny/length,nz/length);}
@@ -126,6 +142,12 @@ export function easeColor(easeCm:number){
  for(let i=1;i<FIT_STOPS.length;i++){const [e1,c1]=FIT_STOPS[i],[e0,c0]=FIT_STOPS[i-1];if(easeCm<=e1)return new THREE.Color(c0).lerp(new THREE.Color(c1),(easeCm-e0)/(e1-e0));}
  return new THREE.Color(FIT_STOPS[FIT_STOPS.length-1][1]);
 }
+// 시뮬레이션 핏 지도: 늘어뜨린 천의 점마다 몸(함께 입은 아래 옷 포함)과의 틈(m)과 둘레 방향으로 늘어난 비율로 같은 네 색을 칠한다.
+// 몸에 닿고(5mm 안) 3% 넘게 늘어나면 끼임, 닿기만 하면 닿음, 0.5~3cm 뜨면 보통, 그보다 뜨면 넉넉함이다.
+export const FIT_SIM_LEGEND:Array<{label:string;range:string;color:string}>=[
+ {label:'끼임',range:'닿고 3%↑ 늘어남',color:'#e0533d'},{label:'닿음',range:'몸과 5mm 안',color:'#f2c94c'},{label:'보통',range:'0.5–3cm 뜸',color:'#7bbf62'},{label:'넉넉함',range:'3cm 넘게 뜸',color:'#3b7fd4'},
+];
+export function simFitColor(gap:number,stretch:number){const touching=gap<.005;return new THREE.Color(touching&&stretch>.03?'#e0533d':touching?'#f2c94c':gap<.03?'#7bbf62':'#3b7fd4');}
 // 고리의 원래 옷 반지름(rx·rz)과 같은 높이 몸 단면의 둘레 차이(cm).
 function ringEase(rx:number,rz:number,section:BodySection|null){return section?(ellipsePerimeter(rx,rz)-section.perimeter)*100:null;}
 // 옷이 몸보다 작은 고리는 몸 단면 바깥(gap만큼)으로 밀어낸다. 실제 옷이 늘어나 몸을 감싸는 모습이며, 핏 보기에서는 빨강으로 표시된다.
@@ -141,23 +163,23 @@ function coverSection(ring:Ring,section:BodySection|null):Ring{
 // 올라오는 U자 밑위 곡선이다. 두 다리가 이 곡선을 함께 써서, 실제 바지처럼 앞·뒤 중심 솔기와 안쪽 솔기가 가랑이에서 만난다.
 // 다리 고리의 i번째 점은 뒤(0)→바깥(N/4)→앞(N/2)→안쪽(3N/4) 순서이고, 맨 아래 다리 고리와 맨 위 고리 사이는 blend개의 고리로 잇는다.
 function pantsSurface(seat:Ring[],legs:Array<{side:number;rings:Ring[]}>,crotch:number,N:number,blend:number,material:THREE.Material,colored:boolean){
- const positions:number[]=[],colors:number[]=[],uvs:number[]=[],indices:number[]=[];
- const add=(x:number,y:number,z:number,c:THREE.Color,u:number,v:number)=>{positions.push(x,y,z);if(colored)colors.push(c.r,c.g,c.b);uvs.push(u,v);return positions.length/3-1;};
+ const positions:number[]=[],colors:number[]=[],uvs:number[]=[],indices:number[]=[],rests:Array<{rest?:number;measured?:boolean}>=[];
+ const add=(x:number,y:number,z:number,c:THREE.Color,u:number,v:number,ring:{rest?:number;measured?:boolean}={})=>{positions.push(x,y,z);if(colored)colors.push(c.r,c.g,c.b);uvs.push(u,v);rests.push(ring);return positions.length/3-1;};
  const at=(i:number)=>new THREE.Vector3(positions[i*3],positions[i*3+1],positions[i*3+2]);
- const seatIds=seat.map((r,j)=>Array.from({length:N},(_,i)=>{const a=i/N*Math.PI*2,c=Math.cos(a),s=Math.sin(a),p=2/(r.n??2);return add((r.x??0)+r.rx*Math.sign(c)*Math.pow(Math.abs(c),p),r.y+(r.dy?r.dy(a):0),(r.z??0)+r.rz*Math.sign(s)*Math.pow(Math.abs(s),p),r.color??NO_FIT_DATA,i/N,.5+.5*j/Math.max(1,seat.length-1));}));
+ const seatIds=seat.map((r,j)=>Array.from({length:N},(_,i)=>{const a=i/N*Math.PI*2,c=Math.cos(a),s=Math.sin(a),p=2/(r.n??2);return add((r.x??0)+r.rx*Math.sign(c)*Math.pow(Math.abs(c),p),r.y+(r.dy?r.dy(a):0),(r.z??0)+r.rz*Math.sign(s)*Math.pow(Math.abs(s),p),r.color??NO_FIT_DATA,i/N,.5+.5*j/Math.max(1,seat.length-1),r);}));
  const base=seatIds[0],front=at(base[N/4]),back=at(base[3*N/4]),top=seat[0].y,mid=(front.z+back.z)/2,half=(front.z-back.z)/2;
  const crotchIds=Array.from({length:N/2-1},(_,m)=>{const t=Math.PI*(m+1)/(N/2);return add(0,top-(top-crotch)*Math.sin(t),mid+half*Math.cos(t),NO_FIT_DATA,.5,.5);});
  const stitch=(lower:number[],upper:number[],flip:boolean)=>{for(let i=0;i<N;i++){const a=lower[i],a1=lower[(i+1)%N],b=upper[i],b1=upper[(i+1)%N];if(flip)indices.push(a,a1,b,b,a1,b1);else indices.push(a,b,a1,b,b1,a1);}};
  for(let j=0;j<seatIds.length-1;j++)stitch(seatIds[j],seatIds[j+1],false);
  for(const {side,rings} of legs){
-  const ids=rings.map((r,j)=>Array.from({length:N},(_,i)=>{const t=-Math.PI/2+i/N*Math.PI*2;return add((r.x??0)+side*r.rx*Math.cos(t),r.y,(r.z??0)+r.rz*Math.sin(t),r.color??NO_FIT_DATA,i/N,.5*j/rings.length);}));
+  const ids=rings.map((r,j)=>Array.from({length:N},(_,i)=>{const t=-Math.PI/2+i/N*Math.PI*2;return add((r.x??0)+side*r.rx*Math.cos(t),r.y,(r.z??0)+r.rz*Math.sin(t),r.color??NO_FIT_DATA,i/N,.5*j/rings.length,r);}));
   const topRing=Array.from({length:N},(_,i)=>i<=N/2?base[(3*N/4+side*i+N)%N]:crotchIds[i-N/2-1]),last=ids[ids.length-1];
   for(let b=1;b<=blend;b++){const t=b/(blend+1);ids.push(Array.from({length:N},(_,i)=>{const p=at(last[i]).lerp(at(topRing[i]),t);return add(p.x,p.y,p.z,NO_FIT_DATA,i/N,.5);}));}
   ids.push(topRing);
   // 왼쪽 다리는 거울상이라 면 방향이 바깥을 향하도록 삼각형 순서를 뒤집는다.
   for(let j=0;j<ids.length-1;j++)stitch(ids[j],ids[j+1],side<0);
  }
- const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));if(colored)g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));g.setIndex(indices);g.computeVertexNormals();
+ const g=new THREE.BufferGeometry();restAttributes(g,rests);g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));if(colored)g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));g.setIndex(indices);g.computeVertexNormals();
  const mesh=new THREE.Mesh(g,material);mesh.castShadow=true;mesh.receiveShadow=true;mesh.name='bottom-body';mesh.userData.ringSize=N;return mesh;
 }
 
@@ -263,7 +285,8 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
      const ring:Ring={...r,rx:overPelvisRx(r.y,r.rx)*widen(r.y),rz:overPelvisRz(r.y,r.rz),dy:scoop(r.y),z:torsoZ(r.y),n:yokeN(r.y)};
      // 여유는 옷 원래 반지름(profile)과 몸통 둘레로 잰다. 밑단 띠 높이는 판단하지 않는다.
      const section=r.y<=armpitY||r.y>=coverY?shape.torso(r.y):underArm?{...underArm,rx:underArm.rx*1.06}:null,ease=chestMeasured&&r.y>=1.22*k&&r.y<=armpitY&&r.y>bottom+.015?ringEase(r.rx,r.rz,section):null;
-     return {...coverSection(ring,section),color:paint(ease,'top',r.y)};
+     const drawn=coverSection(ring,section);
+     return {...drawn,color:paint(ease,'top',r.y),rest:chestMeasured&&r.y<=armpitRing.y+1e-9?restOf(r.rx,r.rz,drawn):undefined,measured:ease!==null};
    });
    if(chestMeasured&&1.3*k>bottom&&1.3*k<=armpitY){const p=radiiAt(profile,1.3*k),ease=ringEase(p.rx,p.rz,shape.torso(1.3*k));if(ease!==null)fitEase.chest=Math.round(ease*10)/10;}
    // 촘촘한 그물망에서는 밑단·카라·줄무늬 띠도 몸판과 같은 분할(112)로 만들어, 시뮬레이션 뒤 몸판을 따라 옮겼을 때 몸판에 묻히지 않게 한다.
@@ -402,7 +425,7 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
    // 엉덩이 실측이 있을 때만 엉덩이 띠(0.88~0.99m, 가랑이 위·허리 7cm 아래)를 칠한다. 허리는 바지 허리선과 몸 측정 위치가 같은지
    // 알 수 없어 핏 카드처럼 판단을 보류하고, 다리 굵기는 엉덩이에서 나눠 그린 가정 모양이라 칠하지 않는다.
    const hipsMeasured=size.hipsFlat!==undefined;
-   const seat:Ring[]=seatProfile.map(r=>{const section=shape.torso(r.y),ease=hipsMeasured&&r.y>=.88*k&&r.y<=.99*k&&r.y>crotch+.02&&r.y<waistY-.07?ringEase(r.rx,r.rz,section):null;return {...coverSection({...r,rx:pelvisRx(r.y,r.rx),rz:pelvisRz(r.y,r.rz),z:torsoZ(r.y),n:2.3},section),dy:tilt(r.y),color:paint(ease,'seat',r.y)};});
+   const seat:Ring[]=seatProfile.map(r=>{const section=shape.torso(r.y),ease=hipsMeasured&&r.y>=.88*k&&r.y<=.99*k&&r.y>crotch+.02&&r.y<waistY-.07?ringEase(r.rx,r.rz,section):null;const drawn=coverSection({...r,rx:pelvisRx(r.y,r.rx),rz:pelvisRz(r.y,r.rz),z:torsoZ(r.y),n:2.3},section);return {...drawn,dy:tilt(r.y),color:paint(ease,'seat',r.y),rest:hipsMeasured?restOf(r.rx,r.rz,drawn):undefined,measured:ease!==null};});
    if(hipsMeasured&&.95*k>crotch+.02&&.95*k<waistY-.07){const p=radiiAt(seatProfile,.95*k),ease=ringEase(p.rx,p.rz,shape.torso(.95*k));if(ease!==null)fitEase.hips=Math.round(ease*10)/10;}
    // 밑단 단면 실측이 없으면 와이드·카펜터 바지는 허벅지 단면을 따라 곧게 떨어지게(밑단 ≈ 허벅지의 95%), 그 밖에는 24cm로 그린다.
    const wideLeg=product.silhouette==='wide'||product.style==='carpenter';
@@ -422,7 +445,9 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
      const onLeg=(y:number)=>{const c=legCenter(y);return {x:s*Math.min(c.x,Math.max(hipX*.5,.1*k)+Math.max(0,crotch+.05-y)*2),z:c.z};};
      // 다리 단면 표는 오른쪽(+x) 다리 기준이므로 왼쪽은 x를 뒤집는다. 다리는 가정 모양이라 덮기만 하고 색은 판단 보류(회색)다.
      // 두 다리 관이 가랑이 근처에서 겹치지 않게, 안쪽 끝은 몸 가운데에서 4mm 이상 떨어지도록 중심을 바깥으로 옮긴다.
-     const rings:Ring[]=leg.map(r=>{const at=shape.leg(r.y),section=at&&{...at,x:s*at.x},ring=coverSection({...r,...onLeg(r.y)},section);return {...ring,x:s*Math.max(Math.abs(ring.x??0),ring.rx+.004),color:paint(null)};});
+     // 다리 모양은 바지 사진 실루엣과 허벅지단면 실측이 모두 있을 때만 실측 기반으로 본다(그 밖에는 엉덩이에서 나눈 가정 모양).
+     const legsMeasured=Boolean(legShape)&&size.thighFlat!==undefined;
+     const rings:Ring[]=leg.map((r,i)=>{const at=shape.leg(r.y),section=at&&{...at,x:s*at.x},ring=coverSection({...r,...onLeg(r.y)},section);return {...ring,x:s*Math.max(Math.abs(ring.x??0),ring.rx+.004),color:paint(null),rest:legsMeasured?restOf(legProfile[i].rx,legProfile[i].rz,ring):undefined};});
      return {side:s,rings,onLeg};
    });
    // 바지 천(엉덩이와 두 다리를 하나로 이은 곡면). 천 시뮬레이션에서는 허리밴드 높이(위 3.5cm)의 고리를 허리에 고정한다.

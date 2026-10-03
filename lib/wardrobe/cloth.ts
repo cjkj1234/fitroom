@@ -43,13 +43,14 @@ export function drapeGarment(group:THREE.Group,sdf:BodySdf,settings:DrapeSetting
  group.traverse(o=>{if(o instanceof THREE.Mesh)(CLOTH_PARTS.includes(o.name)?parts:others).push(o);});
  if(!parts.length)return null;
  // 1) 입자: 조각마다 같은 위치의 정점(고리의 시작·끝)을 하나로 합친다. 소매와 몸판은 따로 두고 아래 바느질 제약으로 잇는다.
- const xs:number[]=[],vertexParticle:Int32Array[]=[],triangles:number[]=[],partStart:number[]=[];
+ const xs:number[]=[],scales:number[]=[],vertexParticle:Int32Array[]=[],triangles:number[]=[],partStart:number[]=[];
  for(const mesh of parts){
-  const position=mesh.geometry.getAttribute('position'),index=mesh.geometry.getIndex()!,map=new Int32Array(position.count),seen=new Map<string,number>();
+  const position=mesh.geometry.getAttribute('position'),index=mesh.geometry.getIndex()!,map=new Int32Array(position.count),seen=new Map<string,number>(),restScale=mesh.geometry.getAttribute('restScale');
   partStart.push(xs.length/3);
   for(let i=0;i<position.count;i++){
    const x=position.getX(i),y=position.getY(i),z=position.getZ(i),key=`${Math.round(x*1e5)},${Math.round(y*1e5)},${Math.round(z*1e5)}`;
-   let id=seen.get(key);if(id===undefined){id=xs.length/3;xs.push(x,y,z);seen.set(key,id);}map[i]=id;
+   let id=seen.get(key);if(id===undefined){id=xs.length/3;xs.push(x,y,z);scales.push(1);seen.set(key,id);}map[i]=id;
+   if(restScale)scales[id]=Math.min(scales[id],restScale.getX(i));
   }
   vertexParticle.push(map);
   for(let t=0;t<index.count;t+=3){const a=map[index.getX(t)],b=map[index.getX(t+1)],c=map[index.getX(t+2)];if(a!==b&&b!==c&&a!==c)triangles.push(a,b,c);}
@@ -82,6 +83,12 @@ export function drapeGarment(group:THREE.Group,sdf:BodySdf,settings:DrapeSetting
  // 제약 목록은 좌표 배열 위치(입자 번호 ×3)로 바꿔 둔다.
  const offsets=(pairs:number[])=>Int32Array.from(pairs,v=>v*3);
  const edgeList=offsets(edges),edgeRest=restOf(edges),bendList=offsets(bends),bendRest=restOf(bends),stitchList=offsets(stitches),stitchRest=restOf(stitches);
+ // 실측 옷 둘레: 몸이 옷보다 커서 넓혀 그린 고리(restScale<1)는 둘레 방향(수평 성분)의 쉬는 길이를 실측 크기로 줄인다.
+ // 그러면 작은 옷은 몸 위에서 실제로 늘어나 당기고, 그 늘어남이 핏 지도에 나타난다. 세로 길이는 그대로 둔다.
+ const shrunk=new Uint8Array(edgeRest.length);
+ const shrinkToGarment=(list:Int32Array,rest:Float64Array,marks?:Uint8Array)=>{for(let c=0;c<rest.length;c++){const a=list[c*2],b=list[c*2+1],k=(scales[a/3]+scales[b/3])/2;if(k>=1)continue;rest[c]=Math.hypot(Math.hypot(x[b]-x[a],x[b+2]-x[a+2])*k,x[b+1]-x[a+1]);if(marks)marks[c]=1;}};
+ shrinkToGarment(edgeList,edgeRest,shrunk);shrinkToGarment(bendList,bendRest);
+ const horizontal=Uint8Array.from({length:edgeRest.length},(_,c)=>{const a=edgeList[c*2],b=edgeList[c*2+1],dy=Math.abs(x[b+1]-x[a+1]),length=Math.hypot(x[b]-x[a],x[b+1]-x[a+1],x[b+2]-x[a+2]);return length>0&&dy/length<.5?1:0;});
  // 3) 덧붙은 조각은 쉬는 모양에서 가장 가까운 천 삼각형의 무게중심 좌표와 법선 방향 거리로 묶는다.
  // 소매단 띠('cuff')는 소매에, 나머지(밑단·카라·줄무늬·주머니 등)는 몸판에만 붙인다. 소매와 몸판이 맞닿은 진동 근처에서 엉뚱한 조각에
  // 붙어 시뮬레이션 뒤 가시처럼 튀어나오지 않게 하기 위해서다.
@@ -187,10 +194,18 @@ export function drapeGarment(group:THREE.Group,sdf:BodySdf,settings:DrapeSetting
  }
  // 5) 결과를 조각에 되돌리고, 덧붙은 조각을 천을 따라 옮긴 뒤 법선을 다시 계산한다.
  writeBack(true);
- // 요약: 모서리가 (어깨 맞춤 뒤의) 쉬는 길이보다 늘어나거나 줄어든 비율, 끝에도 0.2m/s보다 빨리 움직이는 입자 수(멈추지 않은 정도).
- let strainMax=0,strainSum=0;for(let c=0;c<edgeRest.length;c++){const a=edgeList[c*2],b=edgeList[c*2+1],length=Math.hypot(x[a]-x[b],x[a+1]-x[b+1],x[a+2]-x[b+2]),strain=edgeRest[c]>0?Math.abs(length/edgeRest[c]-1):0;strainSum+=strain;if(strain>strainMax)strainMax=strain;}
+ // 핏 지도: 입자마다 몸(과 아래 옷)까지의 거리에서 두께를 뺀 틈(m)과, 이어진 둘레 방향 모서리(쉬는 모양에서 기울기 30° 미만)가
+ // 쉬는 길이보다 늘어난 비율의 평균. 옷이 몸보다 작아 당기는 정도는 둘레 방향에 나타나므로 세로·대각선 모서리는 뺀다.
+ // 조각마다 정점 순서대로 [틈, 늘어남]을 userData.fit에 둔다.
+ const stretchSum=new Float64Array(n),stretchCount=new Float64Array(n);
+ for(let c=0;c<edgeRest.length;c++){const a=edgeList[c*2],b=edgeList[c*2+1];if(!horizontal[c])continue;const strain=edgeRest[c]>0?Math.hypot(x[a]-x[b],x[a+1]-x[b+1],x[a+2]-x[b+2])/edgeRest[c]-1:0;stretchSum[a/3]+=strain;stretchSum[b/3]+=strain;stretchCount[a/3]++;stretchCount[b/3]++;}
+ parts.forEach((mesh,p)=>{const map=vertexParticle[p],fit=new Float32Array(map.length*2);for(let i=0;i<map.length;i++){const id=map[i];sampleSdf(sdf,x[id*3],x[id*3+1],x[id*3+2],sample);fit[i*2]=sample[0]-settings.thickness;fit[i*2+1]=stretchCount[id]?stretchSum[id]/stretchCount[id]:0;}mesh.userData.fit=fit;});
+ // 요약: 실측 크기로 줄이지 않은 모서리가 (어깨 맞춤 뒤의) 쉬는 길이보다 늘어나거나 줄어든 비율(계산이 천을 얼마나 무르게 푸는지),
+ // 실측 크기로 줄인 모서리의 평균 늘어남(옷이 몸보다 작아 당기는 정도), 끝에도 0.2m/s보다 빨리 움직이는 입자 수.
+ let strainMax=0,strainSum=0,free=0,tensionSum=0;for(let c=0;c<edgeRest.length;c++){const a=edgeList[c*2],b=edgeList[c*2+1],length=Math.hypot(x[a]-x[b],x[a+1]-x[b+1],x[a+2]-x[b+2]),strain=edgeRest[c]>0?length/edgeRest[c]-1:0;if(shrunk[c]){tensionSum+=strain;continue;}free++;strainSum+=Math.abs(strain);if(Math.abs(strain)>strainMax)strainMax=Math.abs(strain);}
+ const tensionMean=tensionSum/Math.max(1,edgeRest.length-free);
  let moving=0;for(let i=0;i<n;i++)if(Math.hypot(velocity[i*3],velocity[i*3+1],velocity[i*3+2])>.2)moving++;
- return {ms:Date.now()-started,particles:n,constraints:edgeRest.length+bendRest.length+stitchRest.length,maxSpeed,strainMean:strainSum/Math.max(1,edgeRest.length),strainMax,moving};
+ return {ms:Date.now()-started,particles:n,constraints:edgeRest.length+bendRest.length+stitchRest.length,maxSpeed,strainMean:strainSum/Math.max(1,free),strainMax,tensionMean,moving};
 }
 
 // allowed: 붙일 수 있는 삼각형들의 triangles 안 시작 위치.

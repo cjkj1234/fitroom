@@ -6,7 +6,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RotateCcw, Plus, Minus, Move, LoaderCircle, Shirt, Ruler } from 'lucide-react';
 import type { BodyProfile,Outfit,Product } from '@/lib/wardrobe/types';
-import { makeGarment,disposeGroup,FIT_LEGEND } from '@/lib/wardrobe/geometry';
+import { makeGarment,disposeGroup,FIT_LEGEND,FIT_SIM_LEGEND,simFitColor } from '@/lib/wardrobe/geometry';
 import { morphWeights } from '@/lib/wardrobe/body-shape';
 import { smoothNormals } from '@/lib/wardrobe/cloth';
 import type { DrapeRequest,DrapeResponse } from '@/lib/wardrobe/drape-worker';
@@ -37,6 +37,13 @@ function writeFitView(on:boolean){try{window.sessionStorage.setItem(FIT_VIEW_KEY
 // 상의·하의는 먼저 절차형 모양으로 보여 주고, Worker에서 처짐 시뮬레이션이 끝나면 정점 위치를 바꿔 끼운다. 같은 옷·치수·체형이면 결과를 다시 쓴다.
 const drapeKey=(request:Omit<DrapeRequest,'key'>)=>JSON.stringify([{...request.product,frontTexture:undefined},request.size,request.body.measurements,request.fitView,request.textured,request.under&&[request.under.product.id,request.under.size]]);
 // final이 거짓이면 시뮬레이션 중간 모양이다. 법선은 빠른 계산만 하고, 끝난 것으로 표시하지 않는다.
+// 핏 보기로 만든 옷(정점 색이 있는 조각)이면 실측 높이(measured) 정점을 시뮬레이션 핏 지도 색으로 바꾼다. 칠했으면 true를 돌려준다.
+type Draped={positions:Float32Array[];fit?:Float32Array[]};
+function paintSimFit(group:THREE.Object3D,fit:Float32Array[]){
+ const meshes:THREE.Mesh[]=[];group.traverse(o=>{if(o instanceof THREE.Mesh)meshes.push(o);});let painted=false;
+ meshes.forEach((mesh,i)=>{const values=fit[i],color=mesh.geometry.getAttribute('color') as THREE.BufferAttribute|undefined,measured=mesh.geometry.getAttribute('measured');if(!values?.length||!color||!measured)return;for(let v=0;v<measured.count;v++){if(!measured.getX(v))continue;const c=simFitColor(values[v*2],values[v*2+1]);color.setXYZ(v,c.r,c.g,c.b);painted=true;}color.needsUpdate=true;});
+ return painted;
+}
 function applyDrape(group:THREE.Object3D,positions:Float32Array[],final=true){
  const meshes:THREE.Mesh[]=[];group.traverse(o=>{if(o instanceof THREE.Mesh)meshes.push(o);});
  if(meshes.length!==positions.length||meshes.some((mesh,i)=>mesh.geometry.getAttribute('position').array.length!==positions[i].length))return false;
@@ -50,23 +57,25 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
  const host=useRef<HTMLDivElement>(null),api=useRef<StageApi|null>(null);
  const latest=useRef({body,outfit,products,fitView:false});
  const clickRef=useRef(onGarmentClick),textureCache=useRef(new Map<string,THREE.Texture>()),textureLoading=useRef(new Set<string>());
- const drapeWorker=useRef<Worker|null>(null),drapeCache=useRef(new Map<string,Float32Array[]>()),drapePending=useRef(new Set<string>()),drapeTimer=useRef<number|null>(null);
- const [status,setStatus]=useState('loading'),[draping,setDraping]=useState(false),[drag,setDrag]=useState(false),[view,setView]=useState('정면'),[hoverName,setHoverName]=useState<string|null>(null),[fitView,setFitView]=useState(readFitView);
+ const drapeWorker=useRef<Worker|null>(null),drapeCache=useRef(new Map<string,Draped>()),drapePending=useRef(new Set<string>()),drapeTimer=useRef<number|null>(null);
+ const [status,setStatus]=useState('loading'),[draping,setDraping]=useState(false),[simLegend,setSimLegend]=useState(false),[drag,setDrag]=useState(false),[view,setView]=useState('정면'),[hoverName,setHoverName]=useState<string|null>(null),[fitView,setFitView]=useState(readFitView);
  function update(){const a=api.current;if(!a)return;const {body,outfit,products,fitView}=latest.current;
    const scale=body.measurements.height/175;a.avatar.scale.setScalar(scale);
    a.avatar.traverse(o=>{if(o instanceof THREE.Mesh && o.morphTargetDictionary && o.morphTargetInfluences){const weights:Record<string,number>=morphWeights(body);for(const [name,index]of Object.entries(o.morphTargetDictionary))o.morphTargetInfluences[index]=weights[name]??0;}});
    let minY=Infinity,maxY=-Infinity;const vertex=new THREE.Vector3();a.avatar.traverse(o=>{if(o instanceof THREE.Mesh){const positions=o.geometry.getAttribute('position');for(let i=0;i<positions.count;i++){o.getVertexPosition(i,vertex);minY=Math.min(minY,vertex.y);maxY=Math.max(maxY,vertex.y);}}});if(Number.isFinite(minY)&&maxY>minY){a.avatar.scale.y=body.measurements.height/100/(maxY-minY);a.avatar.position.y=-minY*a.avatar.scale.y;}
    while(a.clothes.children.length){const item=a.clothes.children[0];a.clothes.remove(item);disposeGroup(item);}
-   const requests:DrapeRequest[]=[];
+   const requests:DrapeRequest[]=[];let simPainted=false;
    const bottomItem=Object.values(outfit).map(item=>{const p=products.find(product=>product.id===item.productId);const s=p?.sizes.find(candidate=>candidate.label===item.size);return p&&s&&p.slot==='bottom'?{product:p,size:s}:null;}).find(Boolean)??undefined;
    Object.values(outfit).forEach(item=>{
     const p=products.find(product=>product.id===item.productId);const s=p?.sizes.find(candidate=>candidate.label===item.size);if(!p||!s)return;
     const texture=textureFor(p),fine=p.slot==='top'||p.slot==='bottom',garment=makeGarment(p,s,body,false,{frontTexture:texture,fitView,fine});a.clothes.add(garment);
     if(!fine)return;
     const request={product:p,size:s,body,fitView,textured:Boolean(texture),under:p.slot==='top'?bottomItem:undefined},key=drapeKey(request),cached=drapeCache.current.get(key);garment.userData.drapeKey=key;
-    if(!cached||!applyDrape(garment,cached))requests.push({key,...request});
+    if(!cached||!applyDrape(garment,cached.positions))requests.push({key,...request});
+    else if(fitView&&cached.fit&&paintSimFit(garment,cached.fit))simPainted=true;
    });
    // 하의를 먼저 보낸다. Worker는 늘어뜨린 하의를 기억해 두었다가 상의를 그 위에 늘어뜨린다.
+   setSimLegend(simPainted);
    requestDrape(requests.sort((x,y)=>Number(x.product.slot==='top')-Number(y.product.slot==='top')));a.clearHover();a.render();
  }
  // 체형 슬라이더를 움직이는 동안에는 보내지 않고, 0.3초 멈추면 아직 없는 결과만 Worker에 맡긴다.
@@ -82,9 +91,9 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
     if('positions' in response&&response.partial){const a=api.current;if(!a)return;a.clothes.children.forEach(group=>{if(group.userData.drapeKey===response.key&&!group.userData.draped)applyDrape(group,response.positions,false);});a.render();return;}
     drapePending.current.delete(response.key);setDraping(drapePending.current.size>0);
     if('error' in response){console.warn('옷 처짐 계산 실패',response.error);return;}
-    const cache=drapeCache.current;cache.set(response.key,response.positions);while(cache.size>16)cache.delete(cache.keys().next().value!);
+    const cache=drapeCache.current;cache.set(response.key,{positions:response.positions,fit:response.fit});while(cache.size>16)cache.delete(cache.keys().next().value!);
     const a=api.current;if(!a)return;
-    a.clothes.children.forEach(group=>{if(group.userData.drapeKey===response.key&&!group.userData.draped)applyDrape(group,response.positions);});a.render();
+    a.clothes.children.forEach(group=>{if(group.userData.drapeKey===response.key&&!group.userData.draped&&applyDrape(group,response.positions)&&latest.current.fitView&&response.fit&&paintSimFit(group,response.fit))setSimLegend(true);});a.render();
    };
    worker.onerror=()=>{drapePending.current.clear();setDraping(false);};
    worker.postMessage({warm:true});
@@ -163,7 +172,7 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
    {status==='loading'&&<div className="stage-loading"><LoaderCircle className="spin"/> 아바타를 준비하고 있어요</div>}
    {status==='error'&&<div className="stage-loading error">3D 화면을 불러오지 못했어요.<br/>WebGL을 지원하는 브라우저에서 새로고침해 주세요.<br/>상품과 실측 정보는 계속 확인할 수 있어요.</div>}
    {drag&&<div className="drop-message">여기에 놓아 입어보기</div>}
-   {fitView&&<div className="fit-legend" role="note" aria-label="핏 보기 색 설명"><strong>옷 둘레 − 몸 둘레</strong><ul>{FIT_LEGEND.map(item=><li key={item.label}><i style={{background:item.color}}/>{item.label}<small>{item.range}</small></li>)}</ul><p>{Object.keys(outfit).length?'상품 실측이 있는 높이(상의 가슴·하의 엉덩이·모자 머리둘레)만 3D 아바타의 몸 둘레와 비교해 칠한 참고 색이에요. 실제 착용감과 다를 수 있고, 수치는 아래 실측 비교를 보세요.':'옷을 입히면 높이별 여유가 색으로 보여요.'}</p></div>}
+   {fitView&&<div className="fit-legend" role="note" aria-label="핏 보기 색 설명"><strong>{simLegend?'늘어뜨린 옷과 몸 사이':'옷 둘레 − 몸 둘레'}</strong><ul>{(simLegend?FIT_SIM_LEGEND:FIT_LEGEND).map(item=><li key={item.label}><i style={{background:item.color}}/>{item.label}<small>{item.range}</small></li>)}</ul><p>{!Object.keys(outfit).length?'옷을 입히면 높이별 여유가 색으로 보여요.':simLegend?'상품 실측 크기로 늘어뜨린 3D 옷이 몸에서 뜬 거리와 천이 늘어난 정도를, 실측이 있는 높이(상의 가슴·하의 엉덩이)에만 칠한 시뮬레이션 참고 색이에요. 천 무게·뻣뻣함은 측정값이 아니라 실제 착용감과 다를 수 있고, 수치는 아래 실측 비교를 보세요.':'상품 실측이 있는 높이(상의 가슴·하의 엉덩이·모자 머리둘레)만 3D 아바타의 몸 둘레와 비교해 칠한 참고 색이에요. 실제 착용감과 다를 수 있고, 수치는 아래 실측 비교를 보세요.'}</p></div>}
    {hoverName&&!drag&&<div className="garment-hint" role="status"><Shirt size={13}/>{hoverName} · 눌러서 벗기</div>}
    <div className="zoom-controls"><button aria-label="확대" onClick={()=>zoom(.85)}><Plus size={17}/></button><button aria-label="축소" onClick={()=>zoom(1.15)}><Minus size={17}/></button><button aria-label="시점 초기화" onClick={()=>angle('정면',0)}><RotateCcw size={16}/></button></div>
    <div className="stage-bottom"><span className="gesture-hint desktop"><Move size={13}/> 드래그로 회전 · 스크롤로 확대</span><span className="gesture-hint mobile"><Move size={13}/> 손가락으로 회전 · 두 손가락으로 확대</span><div className="view-buttons">{[['정면',0],['옆면',Math.PI/2],['후면',Math.PI]].map(([label,r])=><button key={label} className={view===label?'active':''} onClick={()=>angle(String(label),Number(r))}>{label}</button>)}</div></div>
