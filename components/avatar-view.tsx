@@ -6,9 +6,13 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RotateCcw, Plus, Minus, Move, LoaderCircle, Shirt, Ruler } from 'lucide-react';
 import type { BodyProfile,Outfit,Product } from '@/lib/wardrobe/types';
-import { makeGarment,disposeGroup,FIT_LEGEND,FIT_SIM_LEGEND,simFitColor } from '@/lib/wardrobe/geometry';
+import { makeGarment,disposeGroup,FIT_LEGEND,FIT_SIM_LEGEND,simFitColor,HAT_BASE_DROP } from '@/lib/wardrobe/geometry';
 import { morphWeights } from '@/lib/wardrobe/body-shape';
 import { smoothNormals } from '@/lib/wardrobe/cloth';
+import { morphedPositions,type MannequinMesh } from '@/lib/wardrobe/mannequin-mesh';
+import { buildHair } from '@/lib/wardrobe/hair';
+import { fabricNormalMap } from '@/lib/wardrobe/fabric';
+import { DEFAULT_APPEARANCE,hairColor,skinColor,type Appearance } from '@/lib/wardrobe/appearance';
 import type { DrapeRequest,DrapeResponse } from '@/lib/wardrobe/drape-worker';
 // 개발 서버에서는 이 컴포넌트의 import.meta.url이 file:// 주소라 new URL(…, import.meta.url)로 만든 Worker 주소를 브라우저가 거부한다.
 // 그래서 Vite가 묶어 준 Worker 주소를 직접 받아 쓴다.
@@ -53,13 +57,43 @@ function applyDrape(group:THREE.Object3D,positions:Float32Array[],final=true){
 
 type StageApi={scene:THREE.Scene;camera:THREE.PerspectiveCamera;controls:OrbitControls;avatar:THREE.Group;clothes:THREE.Group;render:()=>void;clearHover:()=>void};
 
-export default function AvatarView({body,outfit,products,storeName,onDrop,onGarmentClick}:{body:BodyProfile;outfit:Outfit;products:Product[];storeName:string;onDrop:(id:string)=>void;onGarmentClick?:(id:string)=>void}){
+// 피부: 사용자가 고른 피부색에 마네킹 정점 색(입술·눈두덩·볼, generate_avatar_details.py)을 곱한다. 도자기 같은 광택(클리어코트) 대신
+// 무광에 가까운 표면과 약한 솜털 광택(sheen)으로 사람 피부처럼 보이게 한다.
+function makeSkinMaterial(appearance:Appearance){
+ return new THREE.MeshPhysicalMaterial({color:skinColor(appearance),vertexColors:true,roughness:.62,sheen:.3,sheenRoughness:.8,sheenColor:new THREE.Color('#ffd9c9')});
+}
+function makeHairMaterial(appearance:Appearance){
+ const color=new THREE.Color(hairColor(appearance));
+ return new THREE.MeshPhysicalMaterial({color,roughness:.55,sheen:.75,sheenRoughness:.45,sheenColor:color.clone().lerp(new THREE.Color('#ffffff'),.3),side:THREE.DoubleSide,normalMap:fabricNormalMap('hair'),normalScale:new THREE.Vector2(.5,.5)});
+}
+// 눈썹: 얼굴 표면 위에 얹은 얇은 띠. 머리색을 따르되 살짝 옅게(눈썹은 보통 머리카락보다 가늘고 성기다).
+function browColor(appearance:Appearance){return new THREE.Color(hairColor(appearance)).lerp(new THREE.Color(skinColor(appearance)),.18);}
+
+export default function AvatarView({body,outfit,products,storeName,onDrop,onGarmentClick,appearance=DEFAULT_APPEARANCE}:{body:BodyProfile;outfit:Outfit;products:Product[];storeName:string;onDrop:(id:string)=>void;onGarmentClick?:(id:string)=>void;appearance?:Appearance}){
  const host=useRef<HTMLDivElement>(null),api=useRef<StageApi|null>(null);
- const latest=useRef({body,outfit,products,fitView:false});
+ const latest=useRef({body,outfit,products,fitView:false,appearance});
+ // 마네킹 몸(머리카락을 만들 때 체형 적용 위치를 계산), 피부·눈썹 재질, 머리카락 메시와 그 모양을 정한 입력.
+ const mannequin=useRef<MannequinMesh|null>(null),skin=useRef<THREE.MeshPhysicalMaterial|null>(null),brows=useRef<THREE.MeshStandardMaterial|null>(null),hairMesh=useRef<THREE.Mesh|null>(null),hairKey=useRef('');
+ function updateHair(){
+  const a=api.current,mesh=mannequin.current;if(!a||!mesh)return;
+  const {body,outfit,appearance}=latest.current,hatWorn=Boolean(outfit.hat),key=JSON.stringify([body.measurements,appearance.hairStyle,hatWorn]);
+  brows.current?.color.copy(browColor(appearance));
+  if(hairMesh.current){const material=hairMesh.current.material as THREE.MeshPhysicalMaterial,color=new THREE.Color(hairColor(appearance));material.color.copy(color);material.sheenColor.copy(color.clone().lerp(new THREE.Color('#ffffff'),.3));}
+  if(key===hairKey.current)return;
+  hairKey.current=key;
+  if(hairMesh.current){a.scene.remove(hairMesh.current);hairMesh.current.geometry.dispose();(hairMesh.current.material as THREE.Material).dispose();hairMesh.current=null;}
+  if(appearance.hairStyle==='none')return;
+  // 아바타 그룹과 같은 변환(모프 → 키 비율 확대 → 발바닥 0)을 CPU에서 적용한 위치로 머리 모양을 만든다.
+  const positions=morphedPositions(mesh,morphWeights(body),body.measurements.height),top=body.measurements.height/100;
+  const hair=buildHair(positions,mesh.indices,appearance.hairStyle,{hatBase:hatWorn?top-HAT_BASE_DROP:undefined});if(!hair)return;
+  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(hair.positions,3));geometry.setAttribute('uv',new THREE.BufferAttribute(hair.uvs,2));geometry.setIndex(new THREE.BufferAttribute(hair.indices,1));geometry.computeVertexNormals();
+  const mesh3=new THREE.Mesh(geometry,makeHairMaterial(appearance));mesh3.name='hair';mesh3.castShadow=true;mesh3.receiveShadow=true;a.scene.add(mesh3);hairMesh.current=mesh3;
+ }
  const clickRef=useRef(onGarmentClick),textureCache=useRef(new Map<string,THREE.Texture>()),textureLoading=useRef(new Set<string>());
  const drapeWorker=useRef<Worker|null>(null),drapeCache=useRef(new Map<string,Draped>()),drapePending=useRef(new Set<string>()),drapeTimer=useRef<number|null>(null);
  const [status,setStatus]=useState('loading'),[draping,setDraping]=useState(false),[simLegend,setSimLegend]=useState(false),[drag,setDrag]=useState(false),[view,setView]=useState('정면'),[hoverName,setHoverName]=useState<string|null>(null),[fitView,setFitView]=useState(readFitView);
- function update(){const a=api.current;if(!a)return;const {body,outfit,products,fitView}=latest.current;
+ function update(){const a=api.current;if(!a)return;const {body,outfit,products,fitView,appearance}=latest.current;
+   skin.current?.color.set(skinColor(appearance));updateHair();
    const scale=body.measurements.height/175;a.avatar.scale.setScalar(scale);
    a.avatar.traverse(o=>{if(o instanceof THREE.Mesh && o.morphTargetDictionary && o.morphTargetInfluences){const weights:Record<string,number>=morphWeights(body);for(const [name,index]of Object.entries(o.morphTargetDictionary))o.morphTargetInfluences[index]=weights[name]??0;}});
    let minY=Infinity,maxY=-Infinity;const vertex=new THREE.Vector3();a.avatar.traverse(o=>{if(o instanceof THREE.Mesh){const positions=o.geometry.getAttribute('position');for(let i=0;i<positions.count;i++){o.getVertexPosition(i,vertex);minY=Math.min(minY,vertex.y);maxY=Math.max(maxY,vertex.y);}}});if(Number.isFinite(minY)&&maxY>minY){a.avatar.scale.y=body.measurements.height/100/(maxY-minY);a.avatar.position.y=-minY*a.avatar.scale.y;}
@@ -124,14 +158,16 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
  useEffect(()=>{
    const el=host.current;if(!el)return;let renderer:THREE.WebGLRenderer;const pending=drapePending.current;
    try{renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});}catch{const timer=window.setTimeout(()=>setStatus('error'),0);return()=>window.clearTimeout(timer);}
-   renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;renderer.setClearColor(0x000000,0);el.appendChild(renderer.domElement);
+   renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.setClearColor(0x000000,0);el.appendChild(renderer.domElement);
    const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(31,1,.01,20);camera.position.set(0,1.05,3.8);addStoreEnvironment(scene);
    // 부드러운 스튜디오 반사광: 원단과 마네킹의 음영이 납작해 보이지 않게 한다.
    const pmrem=new THREE.PMREMGenerator(renderer),environment=pmrem.fromScene(new RoomEnvironment(),.04).texture;scene.environment=environment;scene.environmentIntensity=.3;
    const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,.87,0);controls.enablePan=false;controls.minDistance=2.0;controls.maxDistance=5;controls.minPolarAngle=.6;controls.maxPolarAngle=1.7;controls.update();
    scene.add(new THREE.HemisphereLight(0xffffff,0xaaaeb3,1.15));
-   const key=new THREE.DirectionalLight(0xffffff,2.9);key.position.set(-2,4,3);key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.camera.left=-2;key.shadow.camera.right=2;key.shadow.camera.top=3;key.shadow.camera.bottom=-1;key.shadow.bias=-.0006;key.shadow.normalBias=.012;scene.add(key);
+   const key=new THREE.DirectionalLight(0xfff3e8,2.9);key.position.set(-2,4,3);key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.camera.left=-2;key.shadow.camera.right=2;key.shadow.camera.top=3;key.shadow.camera.bottom=-1;key.shadow.bias=-.0006;key.shadow.normalBias=.012;scene.add(key);
    const fill=new THREE.DirectionalLight(0xe1e6f1,1.4);fill.position.set(3,2,-2);scene.add(fill);
+   // 뒤 위쪽에서 비추는 윤곽광: 머리카락과 어깨선이 배경에서 떨어져 보이게 한다.
+   const rim=new THREE.DirectionalLight(0xffffff,.9);rim.position.set(0,3,-3);scene.add(rim);
    const platform=new THREE.Mesh(new THREE.CylinderGeometry(.58,.6,.03,72),new THREE.MeshStandardMaterial({color:'#e6e2da',roughness:.55}));platform.position.y=-.015;platform.receiveShadow=true;scene.add(platform);
    const platformRing=new THREE.Mesh(new THREE.TorusGeometry(.586,.004,8,96),new THREE.MeshStandardMaterial({color:'#2557d6',roughness:.4,emissive:'#2557d6',emissiveIntensity:.25}));platformRing.rotation.x=Math.PI/2;platformRing.position.y=.001;scene.add(platformRing);
    const avatar=new THREE.Group(),clothes=new THREE.Group();scene.add(avatar,clothes);
@@ -158,11 +194,23 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
    api.current={scene,camera,controls,avatar,clothes,render,clearHover:()=>setHover(null)};
    drapeWorkerReady();
    const resize=()=>{const w=el.clientWidth,h=el.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();render();};const observer=new ResizeObserver(resize);observer.observe(el);controls.addEventListener('change',render);resize();
-   let disposed=false;new GLTFLoader().load('/models/mannequin.glb',g=>{if(disposed){disposeGroup(g.scene);return;}g.scene.traverse(o=>{if(o instanceof THREE.Mesh){o.material=new THREE.MeshPhysicalMaterial({color:'#d3cdc6',roughness:.58,clearcoat:.14,clearcoatRoughness:.5});o.castShadow=true;o.receiveShadow=true;}});avatar.add(g.scene);setStatus('ready');update();},undefined,()=>setStatus('error'));
+   let disposed=false;new GLTFLoader().load('/models/mannequin.glb',g=>{if(disposed){disposeGroup(g.scene);return;}
+     const skinMaterial=makeSkinMaterial(latest.current.appearance);skin.current=skinMaterial;
+     const meshes:THREE.Mesh[]=[];g.scene.traverse(o=>{if(o instanceof THREE.Mesh)meshes.push(o);});
+     for(const o of meshes){
+      // 눈썹 띠(이름에 eye가 들어가지 않게 먼저 거른다).
+      if(/brow/i.test(o.name)){const material=new THREE.MeshStandardMaterial({color:browColor(latest.current.appearance),roughness:.9,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});brows.current=material;o.material=material;o.castShadow=false;o.receiveShadow=true;continue;}
+      // 눈: 흰자·홍채·동공이 정점 색으로 칠해진 구. 젖은 느낌이 나게 매끈한 코팅을 준다.
+      if(/eye/i.test(o.name)){o.material=new THREE.MeshPhysicalMaterial({vertexColors:true,roughness:.12,clearcoat:1,clearcoatRoughness:.05});o.castShadow=false;o.receiveShadow=false;continue;}
+      o.material=skinMaterial;o.castShadow=true;o.receiveShadow=true;
+      const geometry=o.geometry,dictionary=o.morphTargetDictionary??{},morphs=geometry.morphAttributes.position??[];
+      mannequin.current={positions:new Float32Array(geometry.getAttribute('position').array),indices:new Uint32Array(geometry.getIndex()!.array),targets:Object.fromEntries(Object.entries(dictionary).map(([name,index])=>[name,new Float32Array(morphs[index].array)])),names:Object.keys(dictionary)};
+     }
+     avatar.add(g.scene);setStatus('ready');update();},undefined,()=>setStatus('error'));
    return()=>{disposed=true;if(drapeTimer.current!==null)window.clearTimeout(drapeTimer.current);drapeWorker.current?.terminate();drapeWorker.current=null;pending.clear();observer.disconnect();dom.removeEventListener('pointerdown',onDown);dom.removeEventListener('pointerup',onUp);dom.removeEventListener('pointermove',onMove);dom.removeEventListener('pointerleave',onLeave);controls.dispose();disposeGroup(scene);textureCache.current.forEach(texture=>texture.dispose());textureCache.current.clear();environment.dispose();pmrem.dispose();renderer.dispose();renderer.domElement.remove();api.current=null;};
  },[]);
  useEffect(()=>{clickRef.current=onGarmentClick;});
- useEffect(()=>{latest.current={body,outfit,products,fitView};update();},[body,outfit,products,fitView]);
+ useEffect(()=>{latest.current={body,outfit,products,fitView,appearance};update();},[body,outfit,products,fitView,appearance]);
  function angle(label:string,r:number){const a=api.current;if(!a)return;const d=a.camera.position.distanceTo(a.controls.target);a.camera.position.set(Math.sin(r)*d,1.05,Math.cos(r)*d);a.controls.update();setView(label);a.render();}
  function zoom(f:number){const a=api.current;if(!a)return;const v=a.camera.position.clone().sub(a.controls.target);v.setLength(Math.max(2,Math.min(5,v.length()*f)));a.camera.position.copy(a.controls.target).add(v);a.controls.update();a.render();}
  return <div className={`avatar-stage ${drag?'is-dragging':''}`} onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setDrag(false);}} onDrop={e=>{e.preventDefault();setDrag(false);onDrop(e.dataTransfer.getData('text/plain'));}}>
