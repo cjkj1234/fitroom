@@ -32,6 +32,17 @@ Default weights are all zero. Each target supports weights [-1,1]. Recommended m
 
 If the mesh is subsequently uniformly scaled, all circumference/length changes scale with it. For a fully dimension-aware mapping, divide the requested lengths by the applied height scale before converting to morph weights. `legLength` also changes total native height by 0.20 m per weight; normalizing to an exact requested total stature afterwards will reduce its absolute effect. Keep this interaction visible in the product's approximation language.
 
+## Avatar details (face, eyes, brows)
+
+`public/models/mannequin.glb` is the v2 mannequin plus display-only face details added by `source/generate_avatar_details.py` (numpy; run it on the v2 GLB, it refuses a GLB that already has the details). `source/avatar-details-report.json` records its output.
+
+- Body mesh: unchanged positions, normals, indices and morph targets (the script checks the body buffer and primitive byte for byte). It only adds a `COLOR_0` multiplier per vertex for lips, eyelid creases and cheeks, so the chosen skin colour shows through.
+- `Eye_L`, `Eye_R` (nodes `Fitroom_Eye_L/R`): spheres with white, iris and pupil vertex colours. Centres and sizes come from MakeHuman's `helper-l-eye`/`helper-r-eye` groups in `base.obj`, mapped into mannequin space with a local affine fit around each eye (residual under 1 mm).
+- `Brows` (node `Fitroom_Brows`): two thin ribbons projected onto the face surface and lifted 0.8 mm along the normal.
+- Eyes and brows carry the same seven position morph targets as the body, estimated from the body's morph deltas near each eye, so they follow head and height changes.
+
+Hair is not part of the asset. `lib/wardrobe/hair.ts` builds it in the browser from the morphed head (see `docs/ARCHITECTURE.md`).
+
 ## Limitations
 
 These local morphs approximate body-shape differences. They are not a fitted anthropometric model, and simultaneous morphs interact. The wide mathematical range permits extreme silhouettes; some combinations are anatomically unrealistic and may cause local self-intersection. The model does not simulate cloth or predict garment fit. No skeleton or animation clips. Face, ears, hands and toes remain from MakeHuman; helper/genital geometry is excluded and the chest uses a smooth mannequin shell.
