@@ -239,7 +239,8 @@ def main():
         targets = {}
         for name in names:
             m = affine_fit(P[near], deltas[name][near])
-            targets[name] = affine_apply(m, verts) - verts
+            # m maps a base position to the body morph delta there, so applying it gives the delta directly.
+            targets[name] = affine_apply(m, verts)
         eyes.append((side, verts, efaces, colours, targets, near, center))
         report[f"eye_{side}"] = {"center": np.round(center, 4).tolist(), "radiusMm": round(radius * 1000, 2),
                                  "fitResidualMm": {"mean": round(float(residual.mean()) * 1000, 3), "max": round(float(residual.max()) * 1000, 3)},
@@ -259,13 +260,25 @@ def main():
         offset += len(v)
         for name in names:
             m = affine_fit(P[near], deltas[name][near])
-            brow_targets[name].append(affine_apply(m, v) - v)
+            brow_targets[name].append(affine_apply(m, v))
     brow_verts = np.concatenate(brow_verts)
     brow_faces = np.concatenate(brow_faces)
     brow_targets = {n: np.concatenate(l) for n, l in brow_targets.items()}
     if vertex_normals(brow_verts, brow_faces)[:, 2].mean() < 0:
         brow_faces = brow_faces[:, ::-1]
     report["brows"] = {"vertices": len(brow_verts), "triangles": len(brow_faces)}
+
+    # Morph sanity check: an eye/brow vertex must move like the face around it (within 5 mm of the
+    # local body delta, for every target at weight 1). A position-sized delta would fling the eyes away.
+    worst = 0.0
+    for side, verts, _, _, targets, near, _ in eyes:
+        for name in names:
+            body = deltas[name][near].mean(0)
+            worst = max(worst, float(np.abs(targets[name].mean(0) - body).max()))
+    for name in names:
+        worst = max(worst, float(np.abs(brow_targets[name]).max() - np.abs(deltas[name][np.logical_or.reduce([e[5] for e in eyes])]).max()))
+    report["morphCheckMaxDeviationMm"] = round(worst * 1000, 2)
+    assert worst < 0.005, f"eye/brow morph deltas deviate {worst * 1000:.1f} mm from the face"
 
     # ------------------------------------------------ face colour multipliers (1 = skin as is)
     x, y, z = P.T
