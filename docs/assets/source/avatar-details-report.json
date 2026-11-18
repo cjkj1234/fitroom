@@ -1,0 +1,46 @@
+{
+  "eye_l": {
+    "center": [
+      0.0323,
+      1.624,
+      0.1306
+    ],
+    "radiusMm": 15.18,
+    "fitResidualMm": {
+      "mean": 0.17,
+      "max": 0.946
+    },
+    "vertices": 1201
+  },
+  "eye_r": {
+    "center": [
+      -0.0323,
+      1.624,
+      0.1306
+    ],
+    "radiusMm": 15.18,
+    "fitResidualMm": {
+      "mean": 0.17,
+      "max": 0.946
+    },
+    "vertices": 1201
+  },
+  "brows": {
+    "vertices": 104,
+    "triangles": 100
+  },
+  "morphCheckMaxDeviationMm": 0.89,
+  "mouthFitResidualMm": {
+    "mean": 0.21,
+    "max": 1.535
+  },
+  "teethCenter": [
+    -0.0,
+    1.5668,
+    0.1307
+  ],
+  "paintedVertices": {
+    "lips": 111
+  },
+  "glbBytes": 3296020
+}

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { bodyShape, ellipsePerimeter, type BodySection } from './body-shape';
 import type { BodyProfile, Product, SizeMeasurements } from './types';
+import { fabricKind, fabricNormalMap, type FabricKind } from './fabric';
 
 // n은 단면의 모양이다. 2는 타원이고, 커질수록 네모에 가까워져 몸통의 어깨·골반 모서리를 덮는다.
 // color는 핏 보기에서 그 고리에 칠할 색(여유 정도)이다.
@@ -118,11 +119,16 @@ function bandRings(rings:Ring[],y0:number,y1:number,pad=.0016,center?:(y:number)
  return [y0,y1].map(y=>{const r=radiiAt(rings,y);return {y,rx:r.rx+pad,rz:r.rz+pad,...(center?center(y):{})};});
 }
 
-function fabricMaterial(color:string){
+function fabricMaterial(color:string,kind?:FabricKind){
  const base=new THREE.Color(color);
  // 스치는 각도의 광택(sheen)은 옷 색을 거의 그대로 따르게 해서, 검은 옷의 챙 아래나 가장자리가 하얗게 뜨지 않게 한다.
- return new THREE.MeshPhysicalMaterial({color:base,roughness:.86,sheen:.35,sheenRoughness:.7,sheenColor:base.clone().lerp(new THREE.Color('#ffffff'),.12),side:THREE.DoubleSide});
+ // 원단 결(니트·평직·능직·데님)은 노멀맵으로 표면 음영만 바꾼다(색과 형태는 그대로).
+ const material=new THREE.MeshPhysicalMaterial({color:base,roughness:.86,sheen:.35,sheenRoughness:.7,sheenColor:base.clone().lerp(new THREE.Color('#ffffff'),.12),side:THREE.DoubleSide});
+ if(kind){const strength=kind==='knit'?.22:.3;material.normalMap=fabricNormalMap(kind);material.normalScale.set(strength,strength);}
+ return material;
 }
+// 모자 테두리(챙이 붙는 곳)는 정수리에서 이만큼 아래다. 머리카락(hair.ts)은 모자를 쓰면 이 높이 아래로만 만든다.
+export const HAT_BASE_DROP=.105;
 // 트림(밑단·솔기·밴드)은 본체보다 살짝 어둡게, 너무 어두운 색은 오히려 살짝 밝게 해서 디테일이 보이게 한다.
 function trimMaterial(color:string){
  const trim=new THREE.Color(color),hsl={h:0,s:0,l:0};trim.getHSL(hsl);trim.setHSL(hsl.h,hsl.s,hsl.l<.2?hsl.l+.035:hsl.l*.86);
@@ -209,7 +215,7 @@ export type GarmentOptions={frontTexture?:THREE.Texture;fitView?:boolean;fine?:b
 export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfile,thumbnail=false,options:GarmentOptions={}):THREE.Group {
  const group=new THREE.Group();group.name=product.id;
  const fit=options.fitView===true;
- const mat=fit?new THREE.MeshStandardMaterial({vertexColors:true,roughness:.8,side:THREE.DoubleSide}):fabricMaterial(product.color);
+ const mat=fit?new THREE.MeshStandardMaterial({vertexColors:true,roughness:.8,side:THREE.DoubleSide}):fabricMaterial(product.color,thumbnail?undefined:fabricKind(product));
  const trim=fit?new THREE.MeshStandardMaterial({color:NO_FIT_DATA,roughness:.9,side:THREE.DoubleSide}):trimMaterial(product.color);
  // 정점 색이 없는 부분(소매·챙)은 핏 보기에서 회색 재질을 쓴다.
  const plain=fit?trim:mat;
@@ -482,7 +488,7 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
    const flyY=waistY-.04-.055,fly=new THREE.Mesh(new THREE.BoxGeometry(.004,.11,.004),trim);fly.position.set(0,flyY,torsoZ(flyY)+radiiAt(seat,flyY).rz+.001);group.add(fly);
  } else {
    const circ=(size.headCirc??57)/100;// 마네킹 머리는 가로보다 앞뒤가 깊고(반폭 7.8cm, 반깊이 10cm) 중심이 앞으로 치우쳐 있어 모자도 같은 비율·위치로 만든다.
-   const head=shape.torso(1.66*k),base=H-.105,crownH=.118,hz=HEAD_Z*k+shift(head,shape.neutralTorso(1.66*k)).z;
+   const head=shape.torso(1.66*k),base=H-HAT_BASE_DROP,crownH=.118,hz=HEAD_Z*k+shift(head,shape.neutralTorso(1.66*k)).z;
    const [headX,headZ]=ellipseRadii(circ,1.28);
    // 모자 아래쪽 띠가 닿는 높이의 머리 단면보다 모자가 작으면 머리에 맞게 키운다(끼는 모자). 조절형은 판단을 보류한다.
    const band=[base,base+.02,base+.04].map(y=>shape.torso(y)).filter((section):section is BodySection=>section!==null);
