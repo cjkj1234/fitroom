@@ -14,6 +14,7 @@ import { buildHair } from '@/lib/wardrobe/hair';
 import { fabricNormalMap } from '@/lib/wardrobe/fabric';
 import { DEFAULT_APPEARANCE,hairColor,skinColor,type Appearance } from '@/lib/wardrobe/appearance';
 import { createPhotoCache } from '@/lib/wardrobe/photo-assets';
+import { frameAvatar,STAGE_FOV,type StageFraming,type StageInsets } from '@/lib/wardrobe/camera';
 import type { DrapeRequest,DrapeResponse } from '@/lib/wardrobe/drape-worker';
 // 개발 서버에서는 이 컴포넌트의 import.meta.url이 file:// 주소라 new URL(…, import.meta.url)로 만든 Worker 주소를 브라우저가 거부한다.
 // 그래서 Vite가 묶어 준 Worker 주소를 직접 받아 쓴다.
@@ -93,8 +94,35 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
  const clickRef=useRef(onGarmentClick),photoCache=useRef<ReturnType<typeof createPhotoCache>|null>(null);
  const drapeWorker=useRef<Worker|null>(null),drapeCache=useRef(new Map<string,Draped>()),drapePending=useRef(new Set<string>()),drapeTimer=useRef<number|null>(null);
  const [status,setStatus]=useState('loading'),[draping,setDraping]=useState(false),[simLegend,setSimLegend]=useState(false),[drag,setDrag]=useState(false),[view,setView]=useState('정면'),[hoverName,setHoverName]=useState<string|null>(null),[fitView,setFitView]=useState(readFitView);
+ // 키·화면 비율이 바뀌면 카메라를 다시 맞춘다(lib/wardrobe/camera.ts). 사용자가 돌려 놓은 방향(수평·수직 각도)과
+ // 맞춘 거리 대비 확대 비율은 그대로 두고, 바라보는 높이와 거리만 새 키에 맞춘다.
+ const framed=useRef<{height:number;aspect:number;insets:StageInsets;framing:StageFraming}|null>(null);
+ // 무대 위 글자·버튼(제목, 시점 버튼 줄)이 아바타 머리·몸통이 있는 가운데 열(폭의 ±13%)을 가리는 위·아래 비율. 데스크톱처럼 옆에 있으면 0이다.
+ function stageInsets():StageInsets{
+  const canvas=host.current,stage=canvas?.parentElement;if(!canvas||!stage)return {top:0,bottom:0};
+  const box=canvas.getBoundingClientRect(),cx=box.left+box.width/2,column=box.width*.13;if(box.height<10)return {top:0,bottom:0};
+  let top=0,bottom=0;
+  // 제목(h2)은 블록이라 상자가 무대 폭 전체이므로, 실제 글자 줄의 영역으로 잰다.
+  const rectsOf=(element:Element)=>{if(element.tagName!=='H2')return [element.getBoundingClientRect()];const range=document.createRange();range.selectNodeContents(element);return Array.from(range.getClientRects());};
+  stage.querySelectorAll('.stage-caption h2, .stage-bottom > *').forEach(element=>rectsOf(element).forEach(r=>{
+   if(r.width<1||r.height<1||r.right<cx-column||r.left>cx+column)return;
+   if(r.top<box.top+box.height/2)top=Math.max(top,(r.bottom-box.top)/box.height);else bottom=Math.max(bottom,(box.bottom-r.top)/box.height);
+  }));
+  return {top:Math.round(top*100)/100,bottom:Math.round(bottom*100)/100};
+ }
+ function reframe(){
+  const a=api.current;if(!a)return;
+  const height=latest.current.body.measurements.height/100,aspect=a.camera.aspect,insets=stageInsets(),previous=framed.current;
+  if(previous&&Math.abs(previous.height-height)<1e-4&&Math.abs(previous.aspect-aspect)<1e-3&&previous.insets.top===insets.top&&previous.insets.bottom===insets.bottom)return;
+  const f=frameAvatar(height,aspect,a.camera.fov,insets),offset=a.camera.position.clone().sub(a.controls.target);
+  const ratio=previous?offset.length()/previous.framing.distance:1,distance=Math.min(f.maxDistance,Math.max(f.minDistance,f.distance*ratio));
+  const view=previous?new THREE.Spherical().setFromVector3(offset):new THREE.Spherical(1,Math.acos((f.cameraY-f.targetY)/f.distance),0);
+  a.controls.target.set(0,f.targetY,0);a.controls.minDistance=f.minDistance;a.controls.maxDistance=f.maxDistance;
+  a.camera.position.copy(a.controls.target).add(new THREE.Vector3().setFromSpherical(new THREE.Spherical(distance,view.phi,view.theta)));
+  framed.current={height,aspect,insets,framing:f};a.controls.update();
+ }
  function update(){const a=api.current;if(!a)return;const {body,outfit,products,fitView,appearance}=latest.current;
-   skin.current?.color.set(skinColor(appearance));updateHair();
+   reframe();skin.current?.color.set(skinColor(appearance));updateHair();
    const scale=body.measurements.height/175;a.avatar.scale.setScalar(scale);
    a.avatar.traverse(o=>{if(o instanceof THREE.Mesh && o.morphTargetDictionary && o.morphTargetInfluences){const weights:Record<string,number>=morphWeights(body);for(const [name,index]of Object.entries(o.morphTargetDictionary))o.morphTargetInfluences[index]=weights[name]??0;}});
    let minY=Infinity,maxY=-Infinity;const vertex=new THREE.Vector3();a.avatar.traverse(o=>{if(o instanceof THREE.Mesh){const positions=o.geometry.getAttribute('position');for(let i=0;i<positions.count;i++){o.getVertexPosition(i,vertex);minY=Math.min(minY,vertex.y);maxY=Math.max(maxY,vertex.y);}}});if(Number.isFinite(minY)&&maxY>minY){a.avatar.scale.y=body.measurements.height/100/(maxY-minY);a.avatar.position.y=-minY*a.avatar.scale.y;}
@@ -155,7 +183,7 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
    const el=host.current;if(!el)return;let renderer:THREE.WebGLRenderer;const pending=drapePending.current;
    try{renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});}catch{const timer=window.setTimeout(()=>setStatus('error'),0);return()=>window.clearTimeout(timer);}
    renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.setClearColor(0x000000,0);el.appendChild(renderer.domElement);
-   const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(31,1,.01,20);camera.position.set(0,1.05,3.8);addStoreEnvironment(scene);
+   const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(STAGE_FOV,1,.01,20);camera.position.set(0,1.05,3.8);addStoreEnvironment(scene);
    // 부드러운 스튜디오 반사광: 원단과 마네킹의 음영이 납작해 보이지 않게 한다.
    const pmrem=new THREE.PMREMGenerator(renderer),environment=pmrem.fromScene(new RoomEnvironment(),.04).texture;scene.environment=environment;scene.environmentIntensity=.3;
    const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,.87,0);controls.enablePan=false;controls.minDistance=2.0;controls.maxDistance=5;controls.minPolarAngle=.6;controls.maxPolarAngle=1.7;controls.update();
@@ -189,7 +217,7 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
    dom.addEventListener('pointerdown',onDown);dom.addEventListener('pointerup',onUp);dom.addEventListener('pointermove',onMove);dom.addEventListener('pointerleave',onLeave);
    api.current={scene,camera,controls,avatar,clothes,render,clearHover:()=>setHover(null)};
    drapeWorkerReady();
-   const resize=()=>{const w=el.clientWidth,h=el.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();render();};const observer=new ResizeObserver(resize);observer.observe(el);controls.addEventListener('change',render);resize();
+   const resize=()=>{const w=el.clientWidth,h=el.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();reframe();render();};const observer=new ResizeObserver(resize);observer.observe(el);controls.addEventListener('change',render);resize();
    let disposed=false;new GLTFLoader().load('/models/mannequin.glb',g=>{if(disposed){disposeGroup(g.scene);return;}
      const skinMaterial=makeSkinMaterial(latest.current.appearance);skin.current=skinMaterial;
      const meshes:THREE.Mesh[]=[];g.scene.traverse(o=>{if(o instanceof THREE.Mesh)meshes.push(o);});
@@ -207,8 +235,13 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
  },[]);
  useEffect(()=>{clickRef.current=onGarmentClick;});
  useEffect(()=>{latest.current={body,outfit,products,fitView,appearance};update();},[body,outfit,products,fitView,appearance]);
- function angle(label:string,r:number){const a=api.current;if(!a)return;const d=a.camera.position.distanceTo(a.controls.target);a.camera.position.set(Math.sin(r)*d,1.05,Math.cos(r)*d);a.controls.update();setView(label);a.render();}
- function zoom(f:number){const a=api.current;if(!a)return;const v=a.camera.position.clone().sub(a.controls.target);v.setLength(Math.max(2,Math.min(5,v.length()*f)));a.camera.position.copy(a.controls.target).add(v);a.controls.update();a.render();}
+ // 정면·옆면·후면: 지금 거리에서 키에 맞춘 높이로 돌아간다. reset이면 거리도 키에 맞춘 기본 거리로 되돌린다(시점 초기화).
+ function angle(label:string,r:number,reset=false){
+  const a=api.current;if(!a)return;const f=framed.current?.framing;
+  const d=reset&&f?f.distance:a.camera.position.distanceTo(a.controls.target),lift=f?f.cameraY-f.targetY:.18,flat=Math.sqrt(Math.max(0,d*d-lift*lift));
+  a.camera.position.set(Math.sin(r)*flat,a.controls.target.y+lift,Math.cos(r)*flat);a.controls.update();setView(label);a.render();
+ }
+ function zoom(f:number){const a=api.current;if(!a)return;const v=a.camera.position.clone().sub(a.controls.target);v.setLength(Math.max(a.controls.minDistance,Math.min(a.controls.maxDistance,v.length()*f)));a.camera.position.copy(a.controls.target).add(v);a.controls.update();a.render();}
  return <div className={`avatar-stage ${drag?'is-dragging':''}`} onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setDrag(false);}} onDrop={e=>{e.preventDefault();setDrag(false);onDrop(e.dataTransfer.getData('text/plain'));}}>
    <div className="stage-top"><span className="tiny-label">{storeName} · FITTING ROOM</span><div className="stage-top-actions"><span className="stage-badge">{draping?'옷 맵시 계산 중…':'3D · 가상 매장'}</span><button type="button" className={`fit-toggle ${fitView?'active':''}`} aria-pressed={fitView} onClick={()=>setFitView(on=>{writeFitView(!on);return !on;})}><Ruler size={13}/>핏 보기</button></div></div>
    <div className="stage-caption"><h2>매장에서 고른 옷을,<br/>내 아바타에게.</h2><p>상품을 누르거나 끌어다 놓아 입어보고, 입은 옷을 누르면 벗어요.</p></div>
@@ -218,7 +251,7 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
    {drag&&<div className="drop-message">여기에 놓아 입어보기</div>}
    {fitView&&<div className="fit-legend" role="note" aria-label="핏 보기 색 설명"><strong>{simLegend?'늘어뜨린 옷과 몸 사이':'옷 둘레 − 몸 둘레'}</strong><ul>{(simLegend?FIT_SIM_LEGEND:FIT_LEGEND).map(item=><li key={item.label}><i style={{background:item.color}}/>{item.label}<small>{item.range}</small></li>)}</ul><p>{!Object.keys(outfit).length?'옷을 입히면 높이별 여유가 색으로 보여요.':simLegend?'상품 실측 크기로 늘어뜨린 3D 옷이 몸에서 뜬 거리와 천이 늘어난 정도를, 실측이 있는 높이(상의 가슴·하의 엉덩이)에만 칠한 시뮬레이션 참고 색이에요. 천 무게·뻣뻣함은 측정값이 아니라 실제 착용감과 다를 수 있고, 수치는 아래 실측 비교를 보세요.':'상품 실측이 있는 높이(상의 가슴·하의 엉덩이·모자 머리둘레)만 3D 아바타의 몸 둘레와 비교해 칠한 참고 색이에요. 실제 착용감과 다를 수 있고, 수치는 아래 실측 비교를 보세요.'}</p></div>}
    {hoverName&&!drag&&<div className="garment-hint" role="status"><Shirt size={13}/>{hoverName} · 눌러서 벗기</div>}
-   <div className="zoom-controls"><button aria-label="확대" onClick={()=>zoom(.85)}><Plus size={17}/></button><button aria-label="축소" onClick={()=>zoom(1.15)}><Minus size={17}/></button><button aria-label="시점 초기화" onClick={()=>angle('정면',0)}><RotateCcw size={16}/></button></div>
+   <div className="zoom-controls"><button aria-label="확대" onClick={()=>zoom(.85)}><Plus size={17}/></button><button aria-label="축소" onClick={()=>zoom(1.15)}><Minus size={17}/></button><button aria-label="시점 초기화" onClick={()=>angle('정면',0,true)}><RotateCcw size={16}/></button></div>
    <div className="stage-bottom"><span className="gesture-hint desktop"><Move size={13}/> 드래그로 회전 · 스크롤로 확대</span><span className="gesture-hint mobile"><Move size={13}/> 손가락으로 회전 · 두 손가락으로 확대</span><div className="view-buttons">{[['정면',0],['옆면',Math.PI/2],['후면',Math.PI]].map(([label,r])=><button key={label} className={view===label?'active':''} onClick={()=>angle(String(label),Number(r))}>{label}</button>)}</div></div>
  </div>;
 }
