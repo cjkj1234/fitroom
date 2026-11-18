@@ -2,7 +2,13 @@ import type {Product,SizeMeasurements} from './types';
 
 const common={checkedAt:'2026-09-21',measurementBasis:'소상공인 판매자 등록 흐름을 보여주기 위한 시연용 실측 데이터입니다. 누락된 값은 비교하지 않습니다.',source:'demo' as const};
 type DemoProduct=Omit<Product,'checkedAt'|'url'|'image'|'source'>&{assetId:string};
-function product({assetId,...item}:DemoProduct):Product{return {...common,...item,url:'',image:`/catalog/${assetId}.png`};}
+// 시연 상의·하의는 앞·뒤 평면 촬영 사진이 있다(docs/assets/source/generate_demo_photos.py가 실측으로 그린 시연용 사진).
+// 매장 옷걸이에도 그 사진을 보여 주고, 사진이 없는 모자는 3D로 미리 렌더링한 썸네일을 쓴다.
+const demoPhotos=(assetId:string)=>{const side=(name:'front'|'back')=>({image:`/catalog/photos/${assetId}-${name}.jpg`,mask:`/catalog/photos/${assetId}-${name}-mask.png`});return {front:side('front'),back:side('back')};};
+function product({assetId,...item}:DemoProduct):Product{
+ const photos=item.slot==='hat'?undefined:demoPhotos(assetId);
+ return {...common,...item,url:'',photos,image:photos?photos.front.image:`/catalog/${assetId}.png`};
+}
 const tees=(rows:number[][],labels:string[]):SizeMeasurements[]=>rows.map((row,index)=>({label:labels[index],length:row[0],shoulder:row[1],chestFlat:row[2],sleeve:row[3]}));
 const pants=(rows:number[][],labels:string[]):SizeMeasurements[]=>rows.map((row,index)=>({label:labels[index],length:row[0],waistFlat:row[1],hipsFlat:row[2],thighFlat:row[3],rise:row[4]||undefined,hemFlat:row[5]}));
 
