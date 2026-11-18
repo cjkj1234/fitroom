@@ -43,6 +43,15 @@ If the mesh is subsequently uniformly scaled, all circumference/length changes s
 
 Hair is not part of the asset. `lib/wardrobe/hair.ts` builds it in the browser from the morphed head (see `docs/ARCHITECTURE.md`).
 
+## Skeleton and skin weights
+
+`source/generate_rig.py` (numpy) adds a display skeleton to `public/models/mannequin.glb`, built from the MakeHuman 1.1 default rig (`source/makehuman-rig/`, CC0). Run it after `generate_avatar_details.py`; it refuses a GLB that already has a rig. `source/rig-report.json` records its output.
+
+- 20 bones: hips, spine1-3, neck, head, and per side clavicle, upperarm, forearm, hand, thigh, shin, foot. The 163 MakeHuman bones are merged into them (fingers into the hand, toes into the foot, face bones into the head, twist bones into their limb).
+- Body primitive: `JOINTS_0` (4 x u8) and `WEIGHTS_0` (4 x f32, sum 1) are added. POSITION, NORMAL, indices, morph targets and colours are unchanged.
+- `meshes[0].extras.rig.bones`: bone head positions in mannequin space and how far each head moves at morph weight +1 for every body-shape target (local affine fit of the body morph deltas around the joint). The hips pivot is the midpoint of the two hip joints.
+- The app keeps every fitting computation (section tables, cloth simulation, fit map) on the unposed A-pose body and only poses what it draws (`lib/wardrobe/rig.ts`).
+
 ## Limitations
 
-These local morphs approximate body-shape differences. They are not a fitted anthropometric model, and simultaneous morphs interact. The wide mathematical range permits extreme silhouettes; some combinations are anatomically unrealistic and may cause local self-intersection. The model does not simulate cloth or predict garment fit. No skeleton or animation clips. Face, ears, hands and toes remain from MakeHuman; helper/genital geometry is excluded and the chest uses a smooth mannequin shell.
+These local morphs approximate body-shape differences. They are not a fitted anthropometric model, and simultaneous morphs interact. The wide mathematical range permits extreme silhouettes; some combinations are anatomically unrealistic and may cause local self-intersection. The model does not simulate cloth or predict garment fit. No animation clips; the display skeleton above is added separately and poses only what the app draws. Face, ears, hands and toes remain from MakeHuman; helper/genital geometry is excluded and the chest uses a smooth mannequin shell.

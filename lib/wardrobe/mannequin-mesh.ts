@@ -28,14 +28,25 @@ export function parseMannequin(buffer:Uint8Array):MannequinMesh{
  return {positions:floats(primitive.attributes.POSITION),targets,indices,names};
 }
 
-// avatar-view.tsx의 update()와 같은 순서로 모프를 적용한다: 모프 → 가로·깊이는 키 비율로 확대 → 세로는 발바닥 0, 정수리 = 키가 되게 맞춤.
-export function morphedPositions(mesh:MannequinMesh,weights:MorphWeights,heightCm:number):Float32Array{
- const scale=heightCm/175,out=new Float32Array(mesh.positions);
- for(const name of MORPH_TARGETS){const w=weights[name],delta=mesh.targets[name];if(!w||!delta)continue;for(let i=0;i<out.length;i++)out[i]+=w*delta[i];}
- let minY=Infinity,maxY=-Infinity;for(let i=1;i<out.length;i+=3){minY=Math.min(minY,out[i]);maxY=Math.max(maxY,out[i]);}
- const scaleY=heightCm/100/(maxY-minY);
- for(let i=0;i<out.length;i+=3){out[i]*=scale;out[i+1]=(out[i+1]-minY)*scaleY;out[i+2]*=scale;}
+// 모프를 준 마네킹을 화면 좌표로 옮기는 변환: 가로·깊이는 키 비율(scale)로 키우고, 세로는 몸의 가장 낮은 점(minY)을 0으로,
+// 정수리가 키가 되게(scaleY) 맞춘다. 몸에 맞춰 정한 이 변환을 눈·눈썹·관절에도 그대로 쓴다.
+export type MorphFrame={scale:number;minY:number;scaleY:number};
+function applyMorph(positions:Float32Array,targets:Record<string,Float32Array>,weights:Partial<MorphWeights>){
+ const out=new Float32Array(positions);
+ for(const name of MORPH_TARGETS){const w=weights[name],delta=targets[name];if(!w||!delta)continue;for(let i=0;i<out.length;i++)out[i]+=w*delta[i];}
  return out;
+}
+function toFrame(out:Float32Array,frame:MorphFrame){for(let i=0;i<out.length;i+=3){out[i]*=frame.scale;out[i+1]=(out[i+1]-frame.minY)*frame.scaleY;out[i+2]*=frame.scale;}return out;}
+export function morphFrame(mesh:MannequinMesh,weights:Partial<MorphWeights>,heightCm:number):MorphFrame{
+ const out=applyMorph(mesh.positions,mesh.targets,weights);
+ let minY=Infinity,maxY=-Infinity;for(let i=1;i<out.length;i+=3){minY=Math.min(minY,out[i]);maxY=Math.max(maxY,out[i]);}
+ return {scale:heightCm/175,minY,scaleY:heightCm/100/(maxY-minY)};
+}
+// 몸이 아닌 부분(눈·눈썹 등): 같은 모프 이름의 변화량을 더한 뒤 몸의 변환(frame)으로 옮긴다.
+export function morphPart(positions:Float32Array,targets:Record<string,Float32Array>,weights:Partial<MorphWeights>,frame:MorphFrame){return toFrame(applyMorph(positions,targets,weights),frame);}
+// avatar-view.tsx와 같은 순서로 모프를 적용한다: 모프 → 가로·깊이는 키 비율로 확대 → 세로는 발바닥 0, 정수리 = 키가 되게 맞춤.
+export function morphedPositions(mesh:MannequinMesh,weights:Partial<MorphWeights>,heightCm:number):Float32Array{
+ return toFrame(applyMorph(mesh.positions,mesh.targets,weights),morphFrame(mesh,weights,heightCm));
 }
 export function bodyPositions(mesh:MannequinMesh,body:BodyProfile){return morphedPositions(mesh,morphWeights(body),body.measurements.height);}
 

@@ -1,0 +1,170 @@
+{
+ "bones": {
+  "hips": {
+   "head": [
+    -0.0002,
+    0.90983,
+    0.01237
+   ],
+   "fitResidualMm": "midpoint of the hip joints"
+  },
+  "spine1": {
+   "head": [
+    0.0001,
+    0.9331,
+    0.0062
+   ],
+   "fitResidualMm": 5.63
+  },
+  "spine2": {
+   "head": [
+    -0.0003,
+    1.0539,
+    0.0136
+   ],
+   "fitResidualMm": 2.89
+  },
+  "spine3": {
+   "head": [
+    0.0,
+    1.1542,
+    0.03
+   ],
+   "fitResidualMm": 4.22
+  },
+  "neck": {
+   "head": [
+    0.0,
+    1.4776,
+    0.0069
+   ],
+   "fitResidualMm": 2.29
+  },
+  "head": {
+   "head": [
+    0.0,
+    1.5921,
+    0.0174
+   ],
+   "fitResidualMm": 1.16
+  },
+  "clavicle.L": {
+   "head": [
+    0.0281,
+    1.4025,
+    0.085
+   ],
+   "fitResidualMm": 16.36
+  },
+  "upperarm.L": {
+   "head": [
+    0.1917,
+    1.4092,
+    0.0163
+   ],
+   "fitResidualMm": 30.37
+  },
+  "forearm.L": {
+   "head": [
+    0.329,
+    1.2255,
+    0.0141
+   ],
+   "fitResidualMm": 0.45
+  },
+  "hand.L": {
+   "head": [
+    0.4533,
+    1.116,
+    0.1846
+   ],
+   "fitResidualMm": 0.59
+  },
+  "thigh.L": {
+   "head": [
+    0.1158,
+    0.9098,
+    0.0124
+   ],
+   "fitResidualMm": 6.25
+  },
+  "shin.L": {
+   "head": [
+    0.1663,
+    0.4697,
+    0.0335
+   ],
+   "fitResidualMm": 0.81
+  },
+  "foot.L": {
+   "head": [
+    0.231,
+    0.0751,
+    -0.0009
+   ],
+   "fitResidualMm": 1.73
+  },
+  "clavicle.R": {
+   "head": [
+    -0.0281,
+    1.4025,
+    0.085
+   ],
+   "fitResidualMm": 16.36
+  },
+  "upperarm.R": {
+   "head": [
+    -0.1917,
+    1.4092,
+    0.0163
+   ],
+   "fitResidualMm": 30.37
+  },
+  "forearm.R": {
+   "head": [
+    -0.329,
+    1.2255,
+    0.0141
+   ],
+   "fitResidualMm": 0.45
+  },
+  "hand.R": {
+   "head": [
+    -0.4533,
+    1.116,
+    0.1846
+   ],
+   "fitResidualMm": 0.59
+  },
+  "thigh.R": {
+   "head": [
+    -0.1162,
+    0.9099,
+    0.0123
+   ],
+   "fitResidualMm": 6.2
+  },
+  "shin.R": {
+   "head": [
+    -0.1663,
+    0.4697,
+    0.0335
+   ],
+   "fitResidualMm": 0.81
+  },
+  "foot.R": {
+   "head": [
+    -0.231,
+    0.0751,
+    -0.0009
+   ],
+   "fitResidualMm": 1.73
+  }
+ },
+ "vertexWeights": {
+  "filledFromNeighbour": 0,
+  "maxInfluences": 4,
+  "droppedWeightMax": 0.0
+ },
+ "glbBytes": 3569104
+}
