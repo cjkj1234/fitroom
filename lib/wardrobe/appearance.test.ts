@@ -45,3 +45,32 @@ test('the mannequin asset keeps one body mesh and adds eyes and brows that follo
  assert.ok(Math.abs(left[1]-right[1])<.001);
  assert.ok(brows[1]>left[1]+.01&&brows[1]<left[1]+.04,'brows sit just above the eyes');
 });
+
+// 눈·눈썹 메시를 체형 모프와 함께 움직였을 때 머리 안에 머무는지 본다. 모프 값이 정점 위치만큼 크게 잘못 들어가면
+// 체형을 바꾸는 순간 눈이 머리 밖으로 날아가고, 아바타 높이 계산이 그 점까지 포함해 몸 전체가 납작해진다.
+test('체형을 바꿔도(모프 가중치 ±1 포함) 눈·눈썹이 얼굴과 함께 움직여 머리 안에 머문다',()=>{
+ const glb=readFileSync(new URL('../../public/models/mannequin.glb',import.meta.url));
+ const jsonLength=glb.readUInt32LE(12),json=JSON.parse(glb.subarray(20,20+jsonLength).toString()),bin=glb.subarray(20+jsonLength+8);
+ const floats=(index:number)=>{const a=json.accessors[index],v=json.bufferViews[a.bufferView],start=(v.byteOffset||0)+(a.byteOffset||0),out=new Float32Array(a.count*3);for(let i=0;i<out.length;i++)out[i]=bin.readFloatLE(start+i*4);return out;};
+ type Mesh={name?:string;extras:{targetNames:string[]};primitives:Array<{attributes:{POSITION:number};targets:Array<{POSITION:number}>}>};
+ const meshes=(json.meshes as Mesh[]).map(m=>({name:m.name??'',positions:floats(m.primitives[0].attributes.POSITION),targets:Object.fromEntries(m.extras.targetNames.map((n,i)=>[n,floats(m.primitives[0].targets[i].POSITION)]))}));
+ const body=meshes[0],face=meshes.filter(m=>/Eye|Brows/.test(m.name));assert.equal(face.length,3);
+ const morph=(m:typeof body,weights:Record<string,number>)=>{const out=Float32Array.from(m.positions);for(const [name,w] of Object.entries(weights))if(w)m.targets[name].forEach((d,i)=>{out[i]+=w*d;});return out;};
+ const names=Object.keys(body.targets),cases:Array<Record<string,number>>=[{}];
+ for(const name of names)for(const w of [-1,1])cases.push({[name]:w});
+ cases.push(Object.fromEntries(names.map(n=>[n,.6])),Object.fromEntries(names.map(n=>[n,-.6])));
+ for(const weights of cases){
+  const b=morph(body,weights);let top=-Infinity;for(let i=1;i<b.length;i+=3)top=Math.max(top,b[i]);
+  // 같은 모프를 준 몸의 얼굴 앞쪽 피부 정점(정수리에서 25cm 안).
+  const skin:number[]=[];for(let i=0;i<b.length;i+=3)if(b[i+1]>top-.25&&b[i+2]>0)skin.push(b[i],b[i+1],b[i+2]);
+  for(const m of face){
+   const p=morph(m,weights);let farthest=0;
+   for(let i=0;i<p.length;i+=3){
+    assert.ok(p[i+1]<top&&p[i+1]>top-.2,`${m.name} ${JSON.stringify(weights)}: 높이 ${p[i+1].toFixed(3)} (정수리 ${top.toFixed(3)})`);
+    let near=Infinity;for(let j=0;j<skin.length;j+=3)near=Math.min(near,Math.hypot(p[i]-skin[j],p[i+1]-skin[j+1],p[i+2]-skin[j+2]));
+    farthest=Math.max(farthest,near);
+   }
+   assert.ok(farthest<.025,`${m.name} ${JSON.stringify(weights)}: 얼굴 피부에서 ${(farthest*100).toFixed(1)}cm 떨어짐`);
+  }
+ }
+});
