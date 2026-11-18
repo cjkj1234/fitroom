@@ -212,7 +212,7 @@ flowchart LR
 
 ## 6. 테스트
 
-`npm test`로 Node.js 테스트 러너가 **156개 테스트**를 돌립니다. GitHub Actions에서 설치 → 테스트 → 타입 검사 → 빌드를 실행합니다. 3D 부분은 화면을 눈으로 보는 대신 실제 마네킹 메시로 **물리적 조건을 숫자로 검사**합니다.
+`npm test`로 Node.js 테스트 러너가 **170개 테스트**를 돌립니다. GitHub Actions에서 설치 → 테스트 → 타입 검사 → 빌드를 실행합니다. 3D 부분은 화면을 눈으로 보는 대신 실제 마네킹 메시로 **물리적 조건을 숫자로 검사**합니다.
 
 | 테스트 | 검사 내용 |
 |---|---|
@@ -221,6 +221,7 @@ flowchart LR
 | [`body-fit.test.ts`](../lib/wardrobe/body-fit.test.ts) | 실제 모프를 적용한 여러 체형(160 마름, 175·185 큰 체형 등)에서 노출 비율과 단면 표 오차 |
 | [`hair.test.ts`](../lib/wardrobe/hair.test.ts) | 세 가지 체형에서 머리카락이 머리(귀 포함)를 1mm 넘게 띄워 감싸는지 · 앞머리선이 눈썹 위에서 끝나는지 · 모자를 쓰면 모자 띠 아래로만 생기는지 |
 | [`appearance.test.ts`](../lib/wardrobe/appearance.test.ts) | 저장된 아바타 모습이 깨졌을 때 항목별로 기본값으로 돌아가는지 · 마네킹 GLB의 몸 메시가 하나이고 눈·눈썹이 몸과 같은 모프를 갖는지 |
+| [`camera.test.ts`](../lib/wardrobe/camera.test.ts) | 키 140~210cm·화면 비율 0.5~1.8에서 머리끝·발끝이 세로 시야에 들어오는지 · 보통 화면에서 손끝까지 들어오는지 · 제목·버튼이 가리는 비율을 주면 그 사이에 들어오는지 · 175cm 데스크톱은 예전 카메라와 같은지 |
 | [`photo-silhouette.test.ts`](../lib/seller/photo-silhouette.test.ts) | 상의·바지 사진 윤곽에서 비율을 재고, 쓸 수 없는 사진을 거부하는지 |
 | [`photo-layout.test.ts`](../lib/wardrobe/photo-layout.test.ts) | 가짜 평면 사진에서 몸판 끝·겨드랑이·소매 네 모서리(±5px)·가랑이·다리 폭·앞 목선을 재는지 · 앞(+x→사진 오른쪽)·뒤(+x→사진 왼쪽)·다리 바깥/안쪽 솔기 대응 · 뒤판 합성에 가슴 프린트가 남지 않고 줄무늬 높이는 유지되는지 |
 | [`photo-garment.test.ts`](../lib/wardrobe/photo-garment.test.ts) | 사진을 입힌 상의·하의의 몸판·소매·다리에 0–1 범위 앞·뒤 사진 좌표가 있고 삼각형이 두 묶음으로 빠짐없이 나뉘는지 · Worker용 조각 구성이 화면 쪽과 정점 수까지 같은지 · 가슴 앞 가운데·옆선·소매단이 사진의 제자리에 가는지 |
