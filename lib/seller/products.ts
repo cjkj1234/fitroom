@@ -42,6 +42,9 @@ export const sellerProductSchema=z.object({
  colorHex:z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
  photoShape:topSilhouetteSchema.nullable().optional(),
  legShape:bottomSilhouetteSchema.nullable().optional(),
+ // 상품 사진(앞·뒤 평면 사진)이 있다는 표시. 사진은 상품 정보와 따로 이 브라우저(IndexedDB)와 서버(product_photos)에 두고,
+ // version이 바뀌면 다시 올리고 다시 받는다. back: 뒤 사진도 있는지.
+ photo:z.object({version:z.string().regex(/^[A-Za-z0-9-]{1,40}$/),back:z.boolean()}).strict().nullable().optional(),
  sizes:z.array(sellerSizeSchema).max(6),createdAt:z.string().datetime(),updatedAt:z.string().datetime(),
  status:z.enum(SELLER_PRODUCT_STATUSES).default('draft'),publishedAt:z.union([z.string().datetime(),z.null()]).default(null),
 }).strict();
@@ -99,7 +102,7 @@ const RESERVED_STORE_NAMES=new Set(PRODUCTS.map(product=>normalizeStoreName(prod
 export function isReservedStoreName(name:string){return RESERVED_STORE_NAMES.has(normalizeStoreName(name));}
 export function reservedStoreNameMessage(name:string){return `‘${name.trim()}’ 이름은 FITROOM 시연 상점이 이미 쓰고 있어요. 내 상점 이름을 입력해 주세요.`;}
 
-const PRODUCT_FIELD_LABELS:Record<string,string>={storeName:'상점명',name:'상품명',category:'카테고리',color:'색상',colorHex:'3D 표시 색상',photoShape:'사진 실루엣',legShape:'바지 사진 실루엣',features:'핵심 특징',material:'소재',priceKrw:'판매가',stock:'재고',purchaseUrl:'구매 링크'};
+const PRODUCT_FIELD_LABELS:Record<string,string>={storeName:'상점명',name:'상품명',category:'카테고리',color:'색상',colorHex:'3D 표시 색상',photoShape:'사진 실루엣',legShape:'바지 사진 실루엣',photo:'상품 사진',features:'핵심 특징',material:'소재',priceKrw:'판매가',stock:'재고',purchaseUrl:'구매 링크'};
 const MEASUREMENT_LABELS:Record<string,string>=Object.fromEntries(Object.values(SELLER_MEASUREMENT_FIELDS).flat().map(field=>[field.key,field.label]));
 
 export function describeSellerProductIssue(path:ReadonlyArray<string|number>,sizes:ReadonlyArray<{label:string}>){

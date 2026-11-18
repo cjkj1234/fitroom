@@ -233,6 +233,14 @@
 .seller-texture-field strong{font-size:13px}
 .seller-texture-field small{font-size:11px;line-height:1.5;color:#747881}
 .seller-texture-note{margin:0;font-size:12px;line-height:1.55;color:#8a6d3b}
+.seller-photo-field{display:grid;gap:8px}
+.seller-photo-field .seller-texture-field img{object-fit:contain;background:#fff}
+.seller-back-photo{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:8px 12px 8px 42px}
+.seller-back-photo img{width:44px;height:58px;object-fit:contain;background:#fff;border-radius:5px;border:1px solid #d5d8de}
+.seller-back-photo label{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #cfd3da;border-radius:7px;background:#fff;font-size:12px;font-weight:600;cursor:pointer}
+.seller-back-photo label svg{width:14px;height:14px}
+.seller-back-photo input{display:none}
+.seller-back-photo small{flex:1 1 220px;font-size:11px;line-height:1.5;color:#747881}
 .seller-form-grid .seller-texture-field{flex-direction:row;align-items:center;text-align:left}
 .seller-form-grid .seller-texture-field span{align-items:flex-start}
 /* 핏 보기: 옷 몸판을 여유(옷 둘레 − 몸 둘레) 색으로 칠하는 토글과 범례 */

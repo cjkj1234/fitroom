@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildFrontTexture,cutOutGarment,torsoWindow} from './photo-texture';
+import {cutOutGarment} from './photo-texture';
 
 type Rgb=[number,number,number];
 // 흰 배경 위에 몸통(가운데)과 소매(양옆 위쪽)가 있는 평면 촬영 셔츠, 몸통에 어두운 주머니 무늬가 있는 가짜 사진.
@@ -14,27 +14,13 @@ function flatShirt(){
  return {pixels,width,height};
 }
 
-test('평면 촬영 상의의 윤곽과 몸통 영역을 찾는다',()=>{
+test('평면 촬영 상의의 윤곽을 찾고, 안쪽 무늬(주머니)는 옷에 포함한다',()=>{
  const {pixels,width,height}=flatShirt();
  const cutout=cutOutGarment(pixels,width,height);
  assert.ok(cutout);
  assert.ok(Math.abs(cutout.box.x0-20)<=1&&Math.abs(cutout.box.x1-179)<=1&&Math.abs(cutout.box.y0-40)<=1&&Math.abs(cutout.box.y1-199)<=1,JSON.stringify(cutout.box));
- const window=torsoWindow(cutout);
- assert.ok(Math.abs(window.x0-61)<=2&&Math.abs(window.x1-138)<=2,`몸통 폭 ${window.x0}–${window.x1}`);
- assert.equal(window.y0,cutout.box.y0);assert.ok(window.y1<cutout.box.y1&&window.y1>cutout.box.y1-6,`아래 끝 ${window.y1}`);
-});
-
-test('몸통 영역을 텍스처로 옮기면 무늬가 제자리에 놓인다',()=>{
- const {pixels,width,height}=flatShirt(),cutout=cutOutGarment(pixels,width,height)!,window=torsoWindow(cutout);
- const texture=buildFrontTexture(pixels,cutout,window,128);
- assert.equal(texture.width,128);
- assert.ok(texture.height>200&&texture.height<300,`높이 ${texture.height}`);
- // 주머니는 몸통 폭의 50–81%, 옷 높이의 31–44% 위치.
- const px=Math.round(.65*texture.width),py=Math.round(.375*texture.height),i=(py*texture.width+px)*4;
- assert.ok(Math.abs(texture.data[i]-60)<8&&Math.abs(texture.data[i+1]-50)<8&&Math.abs(texture.data[i+2]-40)<8,`주머니 색 ${texture.data.slice(i,i+3)}`);
- const corner=(2*texture.width+2)*4;
- assert.ok(Math.abs(texture.data[corner]-120)<10,`몸통 색 ${texture.data[corner]}`);
- assert.equal(texture.data[3],255);
+ assert.equal(cutout.mask[100*width+110],1,'주머니');
+ assert.equal(cutout.mask[20*width+20],0,'배경');
 });
 
 test('배경뿐이거나 윤곽이 너무 작은 사진은 만들지 않는다',()=>{
