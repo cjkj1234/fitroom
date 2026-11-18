@@ -20,9 +20,12 @@ const median=(values:number[])=>{if(!values.length)return 0;const sorted=[...val
 const within=(value:number,[min,max]:readonly [number,number])=>value>=min&&value<=max;
 
 export function measureTopSilhouette(cutout:GarmentCutout):TopSilhouette|null{return analyzeTopSilhouette(cutout).silhouette;}
-// 실패하면 이유(reason)를 함께 돌려줘 판매자 화면과 테스트에서 왜 못 쟀는지 알 수 있게 한다.
-export function analyzeTopSilhouette(cutout:GarmentCutout):{silhouette:TopSilhouette|null;reason:string}{
- const {mask,width,box}=cutout,height=box.y1-box.y0+1,fail=(reason:string)=>({silhouette:null,reason});
+type Run=[number,number];
+// 상의 사진의 뼈대: 몸판 가운데 x(cx), 겨드랑이 줄(armpit), 가슴 평면 폭(px), 그 줄의 몸판 덩어리(central)와 5줄 중앙값 폭(smooth).
+// 실루엣 비율(analyzeTopSilhouette)과 사진을 3D 옷에 입히는 배치(lib/wardrobe/photo-layout.ts)가 함께 쓴다.
+export type TopFrame={cx:number;armpit:number;chest:number;central:(y:number)=>Run|null;smooth:(y:number)=>number};
+export function locateTop(cutout:GarmentCutout):{frame:TopFrame|null;reason:string}{
+ const {mask,width,box}=cutout,height=box.y1-box.y0+1,fail=(reason:string)=>({frame:null,reason});
  if(height<40||box.x1-box.x0<30)return fail('윤곽이 너무 작아요');
  const runsAt=(y:number)=>{const runs:Array<[number,number]>=[];let start=-1;for(let x=box.x0;x<=box.x1+1;x++){const on=x<=box.x1&&mask[y*width+x]===1;if(on&&start<0)start=x;if(!on&&start>=0){runs.push([start,x-1]);start=-1;}}return runs;};
  // 아래쪽 몸판(소매가 없는 높이)의 가운데를 옷 중심으로 잡는다.
@@ -51,6 +54,13 @@ export function analyzeTopSilhouette(cutout:GarmentCutout):{silhouette:TopSilhou
  if(armpit<0)return fail('소매가 붙는 겨드랑이 높이를 찾지 못했어요');
  const chest=median([2,3,4,5,6].map(d=>rowWidth(Math.min(box.y1,armpit+d))));
  if(chest<10)return fail('가슴 폭을 재지 못했어요');
+ return {frame:{cx,armpit,chest,central,smooth},reason:''};
+}
+// 실패하면 이유(reason)를 함께 돌려줘 판매자 화면과 테스트에서 왜 못 쟀는지 알 수 있게 한다.
+export function analyzeTopSilhouette(cutout:GarmentCutout):{silhouette:TopSilhouette|null;reason:string}{
+ const {box}=cutout,height=box.y1-box.y0+1,fail=(reason:string)=>({silhouette:null,reason});
+ const located=locateTop(cutout);if(!located.frame)return fail(located.reason);
+ const {armpit,chest,smooth}=located.frame;
  const hem=box.y1-height*.01;
  // 첫 측정점은 겨드랑이 줄에 남은 소매 끝을 피해 조금 아래(옷 높이의 1.5%, 최소 3줄)에서 잰다.
  const first=armpit+Math.max(3,height*.015);
@@ -79,8 +89,10 @@ export type BottomSilhouette={
 export const LEG_LIMITS={legWidth:[.3,1.8],rise:[.12,.65],lengthToWaist:[.6,4.2],hipToWaist:[.95,1.9]} as const;
 
 export function measureBottomSilhouette(cutout:GarmentCutout):BottomSilhouette|null{return analyzeBottomSilhouette(cutout).silhouette;}
-export function analyzeBottomSilhouette(cutout:GarmentCutout):{silhouette:BottomSilhouette|null;reason:string}{
- const {mask,width,box}=cutout,height=box.y1-box.y0+1,fail=(reason:string)=>({silhouette:null,reason});
+// 바지 사진의 뼈대: 허리 가운데 x(cx)와 허리 평면 폭(px), 가랑이 줄(crotch), 줄마다의 덩어리(runsAt)와 두 다리(legsAt, [사진 왼쪽, 오른쪽]).
+export type BottomFrame={cx:number;waist:number;crotch:number;runsAt:(y:number)=>Run[];legsAt:(y:number)=>[Run,Run]|null};
+export function locateBottom(cutout:GarmentCutout):{frame:BottomFrame|null;reason:string}{
+ const {mask,width,box}=cutout,height=box.y1-box.y0+1,fail=(reason:string)=>({frame:null,reason});
  if(height<40||box.x1-box.x0<30)return fail('윤곽이 너무 작아요');
  const clampY=(y:number)=>Math.max(box.y0,Math.min(box.y1,Math.round(y)));
  // 3픽셀보다 좁은 덩어리(실밥·그림자 조각)는 무시한다.
@@ -102,6 +114,12 @@ export function analyzeBottomSilhouette(cutout:GarmentCutout):{silhouette:Bottom
  // 가랑이 아래에서는 두 다리가 거의 내내 떨어져 보여야 한다. 다리를 겹쳐 놓았거나 사람이 입은 사진이면 여기서 거른다.
  let rows=0,split=0;for(let y=crotch;y<=box.y1-2;y++){rows++;if(legsAt(y))split++;}
  if(split<rows*.85)return fail('가랑이 아래에서 두 다리가 계속 떨어져 보이지 않아요');
+ return {frame:{cx,waist,crotch,runsAt,legsAt},reason:''};
+}
+export function analyzeBottomSilhouette(cutout:GarmentCutout):{silhouette:BottomSilhouette|null;reason:string}{
+ const {box}=cutout,height=box.y1-box.y0+1,fail=(reason:string)=>({silhouette:null,reason});
+ const located=locateBottom(cutout);if(!located.frame)return fail(located.reason);
+ const {cx,waist,crotch,runsAt,legsAt}=located.frame;
  // 엉덩이: 허리 아래 5%부터 가랑이까지 가운데 덩어리 폭(5줄 중앙값)의 최댓값.
  const centralWidth=(y:number)=>{const run=runsAt(y).find(r=>r[0]<=cx&&r[1]>=cx);return run?run[1]-run[0]+1:0;};
  let hip=0;for(let y=box.y0+Math.round(height*.05);y<crotch;y++)hip=Math.max(hip,median([-2,-1,0,1,2].map(d=>centralWidth(y+d))));

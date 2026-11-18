@@ -37,6 +37,9 @@ export async function PUT(request:Request){
  const productsJson=JSON.stringify(parsed.data.products),storeJson=parsed.data.store?JSON.stringify(parsed.data.store):null;
  try{
   await getD1().prepare('INSERT INTO seller_workspaces (user_id, products_json, store_json, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET products_json = excluded.products_json, store_json = excluded.store_json, updated_at = excluded.updated_at').bind(user.userId,productsJson,storeJson,updatedAt).run();
+  // 지운 상품과 사진을 뺀 상품의 상품 사진은 서버에서도 지운다. 사진 표(product_photos)가 아직 없어도 상품 저장은 그대로 둔다.
+  const withPhotos=JSON.stringify(parsed.data.products.filter(product=>product.photo).map(product=>product.id));
+  try{await getD1().prepare('DELETE FROM product_photos WHERE user_id = ? AND product_id NOT IN (SELECT value FROM json_each(?))').bind(user.userId,withPhotos).run();}catch{}
   const workspace={...parsed.data,updatedAt};
   return json({workspace,summary:sellerWorkspaceSummary(workspace)});
  }catch(error){return databaseError(error);}

@@ -1,5 +1,5 @@
 import {publishedSellerProducts,type SellerProduct,type SellerSize} from './products';
-import type {Product,SizeMeasurements} from '../wardrobe/types';
+import type {Product,ProductPhotos,SizeMeasurements} from '../wardrobe/types';
 
 export const SELLER_CATEGORY_IMAGES={top:'/catalog/3777371.png',bottom:'/catalog/3504218.png',hat:'/catalog/5067714.png'} as const;
 const COLOR_MAP:Record<string,string>={
@@ -47,20 +47,29 @@ function silhouette(product:SellerProduct):Product['silhouette']{
  return 'tee';
 }
 
-export function sellerProductToWardrobeProduct(product:SellerProduct,frontTexture?:string):Product{
+// 서버에 올린 상품 사진 주소. version이 주소에 들어가 사진을 바꾸면 주소도 바뀐다(오래 캐시해도 된다).
+export function serverProductPhotos(product:SellerProduct):ProductPhotos|undefined{
+ if(!product.photo||product.category==='hat')return undefined;
+ const url=(side:'front'|'back',kind:'image'|'mask')=>`/api/catalog/photo?product=${encodeURIComponent(product.id)}&side=${side}&kind=${kind}&v=${product.photo!.version}`;
+ return {front:{image:url('front','image'),mask:url('front','mask')},...(product.photo.back?{back:{image:url('back','image'),mask:url('back','mask')}}:{})};
+}
+
+// localPhotos: 이 브라우저에 있는 상품 사진(판매자 본인 기기). 없으면 서버에 올린 사진 주소를 쓴다.
+export function sellerProductToWardrobeProduct(product:SellerProduct,localPhotos?:ProductPhotos):Product{
  const descriptor=[product.name,...product.features,product.material??''].join(' ').toLowerCase();
+ const photos=product.category==='hat'?undefined:localPhotos??serverProductPhotos(product);
  return {
   id:`seller:${product.id}`,sellerProductId:product.id,source:'seller',slot:product.category,
-  brand:product.storeName,name:product.name,color:product.colorHex??sellerColorToHex(product.color),colorName:product.color,style:sellerStyle(product),frontTexture:product.category==='top'?frontTexture:undefined,photoShape:product.category==='top'?product.photoShape??undefined:undefined,legShape:product.category==='bottom'?product.legShape??undefined:undefined,
+  brand:product.storeName,name:product.name,color:product.colorHex??sellerColorToHex(product.color),colorName:product.color,style:sellerStyle(product),photos,photoShape:product.category==='top'?product.photoShape??undefined:undefined,legShape:product.category==='bottom'?product.legShape??undefined:undefined,
   url:product.purchaseUrl??'',checkedAt:product.updatedAt.slice(0,10),sizes:product.sizes.map(compactSize),defaultSize:product.sizes[0].label,
   silhouette:silhouette(product),elasticWaist:product.category==='bottom'&&(descriptor.includes('밴딩')||descriptor.includes('고무')),
   adjustableHat:product.category==='hat'&&(descriptor.includes('조절')||descriptor.includes('스트랩')),
-  note:'판매자가 입력한 색상·실측과 일부 형태 특징을 적용한 참고용 3D 표현입니다. 선택한 상의 사진 무늬는 현재 탭에서만 보이며, 실제 원단·주름·착용감은 반영되지 않습니다.',
-  measurementBasis:'판매자가 직접 입력한 상품 실측. 누락된 값은 비교하지 않습니다.',image:SELLER_CATEGORY_IMAGES[product.category],
+  note:photos?'판매자가 올린 평면 사진을 입힌 3D 표현입니다. 형태와 치수는 판매자 실측을 따르고, 원단 두께·신축성은 반영하지 않습니다.':'판매자가 입력한 색상·실측과 일부 형태 특징을 적용한 참고용 3D 표현입니다. 실제 원단·주름·착용감은 반영되지 않습니다.',
+  measurementBasis:'판매자가 직접 입력한 상품 실측. 누락된 값은 비교하지 않습니다.',image:photos?photos.front.image:SELLER_CATEGORY_IMAGES[product.category],
   priceKrw:product.priceKrw??undefined,stock:product.stock??undefined,
  };
 }
 
-export function publishedSellerCatalog(products:SellerProduct[],textures:Record<string,string>={}){
- return publishedSellerProducts(products).map(product=>sellerProductToWardrobeProduct(product,textures[product.id]));
+export function publishedSellerCatalog(products:SellerProduct[],localPhotos:Record<string,ProductPhotos>={}){
+ return publishedSellerProducts(products).map(product=>sellerProductToWardrobeProduct(product,product.photo?localPhotos[product.id]:undefined));
 }

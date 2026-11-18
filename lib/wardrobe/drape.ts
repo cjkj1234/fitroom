@@ -8,7 +8,8 @@ import {clothBounds,drapeGarment,DRAPE_BOTTOM,DRAPE_DEFAULTS,type DrapeSettings}
 import type {BodyProfile,Product,SizeMeasurements} from './types';
 
 // positions: 이미 늘어뜨린 하의의 조각별 정점 위치(makeGarment(…,{fine:true})의 조각 순서). 없으면 절차형 모양을 쓴다.
-export type UnderGarment={product:Product;size:SizeMeasurements;positions?:Float32Array[]};
+// textured: 하의에 상품 사진을 입혔는지(사진 모드는 카고 주머니처럼 사진에 보이는 조각을 만들지 않아 조각 순서가 다르다).
+export type UnderGarment={product:Product;size:SizeMeasurements;textured?:boolean;positions?:Float32Array[]};
 
 // onProgress: 중간 모양을 보여 줄 때(cloth.ts drapeGarment 참고).
 export function drapeBottom(group:THREE.Group,mannequin:MannequinMesh,body:BodyProfile,settings:DrapeSettings=DRAPE_BOTTOM,onProgress?:(done:number)=>void){
@@ -34,7 +35,7 @@ export function applyPositions(group:THREE.Group,positions:Float32Array[]){
 // 하의는 바지 천·허리밴드를 바깥으로 6mm, 벨트 고리·앞 여밈선(닫힌 상자)은 3mm 부풀려 넣는다. 원단 두께와 장식이
 // 상의를 뚫고 보이지 않게 하기 위해서다. 늘어뜨린 하의가 있으면 그 모양을 쓴다.
 function underColliders(under:UnderGarment,body:BodyProfile):SdfMesh[]{
- const bottom=makeGarment(under.product,under.size,body,false,{fine:true});
+ const bottom=makeGarment(under.product,under.size,body,false,{fine:true,photo:under.textured?{}:undefined});
  if(under.positions)applyPositions(bottom,under.positions);
  bottom.updateMatrixWorld(true);
  const point=new THREE.Vector3(),out:SdfMesh[]=[];

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { bodyShape, ellipsePerimeter, type BodySection } from './body-shape';
 import type { BodyProfile, Product, SizeMeasurements } from './types';
 import { fabricKind, fabricNormalMap, type FabricKind } from './fabric';
+import { legPoint, seatPoint, sleevePoint, toUV, torsoPoint, type BottomLayout, type PhotoLayout, type Pt } from './photo-layout';
 
 // n은 단면의 모양이다. 2는 타원이고, 커질수록 네모에 가까워져 몸통의 어깨·골반 모서리를 덮는다.
 // color는 핏 보기에서 그 고리에 칠할 색(여유 정도)이다.
@@ -91,15 +92,47 @@ function profileRings(control:Ring[],count:number,denseFrom?:number,dense=8,spac
   return {y,rx:a.y+(b.y-a.y)*t,rz:a.z+(b.z-a.z)*t};
  });
 }
-// 높이 y에서 고리의 반지름·중심 z·단면 모양(n)을 보간해 돌려준다. 고리는 y가 커지는 순서여야 한다.
+// 높이 y에서 고리의 반지름·중심(x,z)·단면 모양(n)을 보간해 돌려준다. 고리는 y가 커지는 순서여야 한다.
 function radiiAt(rings:Ring[],y:number){
- const shape=(r:Ring)=>({rx:r.rx,rz:r.rz,z:r.z??0,n:r.n??2});
+ const shape=(r:Ring)=>({rx:r.rx,rz:r.rz,x:r.x??0,z:r.z??0,n:r.n??2});
  if(y<=rings[0].y)return shape(rings[0]);
  for(let j=1;j<rings.length;j++){
   const a=rings[j-1],b=rings[j];
-  if(y<=b.y){const t=(y-a.y)/((b.y-a.y)||1),from=shape(a),to=shape(b);return {rx:from.rx+(to.rx-from.rx)*t,rz:from.rz+(to.rz-from.rz)*t,z:from.z+(to.z-from.z)*t,n:from.n+(to.n-from.n)*t};}
+  if(y<=b.y){const t=(y-a.y)/((b.y-a.y)||1),from=shape(a),to=shape(b);return {rx:from.rx+(to.rx-from.rx)*t,rz:from.rz+(to.rz-from.rz)*t,x:from.x+(to.x-from.x)*t,z:from.z+(to.z-from.z)*t,n:from.n+(to.n-from.n)*t};}
  }
  return shape(rings[rings.length-1]);
+}
+// 상품 사진 입히기. front·back: 앞·뒤 사진의 배치(photo-layout.ts)와 텍스처(뒤 사진이 없으면 앞 사진으로 만든 뒤판). color: 사진 속 옷 평균색.
+export type PhotoSide={layout:PhotoLayout;texture?:THREE.Texture};
+export type GarmentPhoto={front?:PhotoSide;back?:PhotoSide;color?:string};
+type ReadyPhoto={front:Required<PhotoSide>;back:Required<PhotoSide>;color:string};
+// 정점마다 앞·뒤 사진 위 픽셀과 앞을 보는 정도(facing, 앞 +1 ~ 뒤 −1)를 돌려준다.
+type PhotoMapper=(p:THREE.Vector3,index:number)=>{front:Pt;back:Pt;facing:number};
+// 앞 사진 좌표는 uv1, 뒤 사진 좌표는 uv2에 넣는다(원단 결 노멀맵은 원래 uv를 그대로 쓴다). 삼각형은 세 꼭짓점의 facing 합으로
+// 앞·뒤 묶음(재질 0·1)으로 나눈다. 옆선을 걸친 삼각형도 두 좌표가 모두 옆선 근처 사진 가장자리를 가리키므로 이음매가 튀지 않는다.
+// 정점 순서·개수는 그대로라 천 시뮬레이션 결과(정점 위치)를 그대로 덮어쓸 수 있다.
+function applyPhoto(mesh:THREE.Mesh,photo:ReadyPhoto,materials:[THREE.Material,THREE.Material],map:PhotoMapper){
+ const g=mesh.geometry,position=g.getAttribute('position'),n=position.count,uv1=new Float32Array(n*2),uv2=new Float32Array(n*2),facing=new Float32Array(n),p=new THREE.Vector3();
+ for(let i=0;i<n;i++){
+  p.fromBufferAttribute(position,i);const m=map(p,i),a=toUV(photo.front.layout,m.front),b=toUV(photo.back.layout,m.back);
+  uv1[i*2]=a[0];uv1[i*2+1]=a[1];uv2[i*2]=b[0];uv2[i*2+1]=b[1];facing[i]=m.facing;
+ }
+ g.setAttribute('uv1',new THREE.BufferAttribute(uv1,2));g.setAttribute('uv2',new THREE.BufferAttribute(uv2,2));
+ const index=g.getIndex();if(!index)return;
+ const front:number[]=[],back:number[]=[],src=index.array;
+ for(let t=0;t<src.length;t+=3)(facing[src[t]]+facing[src[t+1]]+facing[src[t+2]]>=0?front:back).push(src[t],src[t+1],src[t+2]);
+ g.setIndex([...front,...back]);g.clearGroups();g.addGroup(0,front.length,0);g.addGroup(front.length,back.length,1);
+ mesh.material=materials;
+}
+// 사진 재질: 색은 사진(map)이 정하고, 광택(sheen)은 사진 평균색을 따른다. 앞 사진은 uv1, 뒤 사진은 uv2 채널을 쓴다.
+function photoMaterials(photo:ReadyPhoto,kind:FabricKind):[THREE.Material,THREE.Material]{
+ const average=new THREE.Color(photo.color),strength=kind==='knit'?.22:.3;
+ const make=(texture:THREE.Texture,channel:number)=>{
+  texture.channel=channel;
+  const material=new THREE.MeshPhysicalMaterial({color:'#ffffff',map:texture,roughness:.86,sheen:.35,sheenRoughness:.7,sheenColor:average.clone().lerp(new THREE.Color('#ffffff'),.12),side:THREE.DoubleSide,normalMap:fabricNormalMap(kind)});
+  material.normalScale.set(strength,strength);return material;
+ };
+ return [make(photo.front.texture,1),make(photo.back.texture,2)];
 }
 // 몸통 표면(고리 단면) 위 좌표 (x,y)의 앞(+1)·뒤(-1) z. offset만큼 바깥으로 띄워 주머니·단추가 옷에 묻히지 않게 한다.
 function surfaceZ(rings:Ring[],x:number,y:number,side:1|-1,offset=0){
@@ -207,16 +240,22 @@ function brimMeshes(rx:number,rz:number,base:number,zOffset:number,material:THRE
  return [brim,rim];
 }
 
-// options.frontTexture: 평면 촬영한 상의 사진에서 만든 앞면 텍스처. 있으면 상의 앞면에 사진 무늬를 입히고 절차형 앞면 세부(카라·단추·주머니)는 생략한다.
+// options.photo: 평면 촬영한 상품 사진(앞·뒤). 있으면 상의·하의의 몸판·소매·다리·밑단·허리밴드에 사진을 입히고, 사진에 이미 보이는
+// 절차형 세부(줄무늬·카라 앞쪽·단추·주머니)는 만들지 않는다. 텍스처 없이 빈 객체({})만 주면 조각 구성만 사진 모드와 같게 만든다
+// (천 시뮬레이션 Worker가 화면과 같은 조각 순서로 계산하기 위함). 핏 보기·썸네일에서는 사진 대신 원래 색을 쓴다.
 // options.fitView: 핏 보기. 옷 몸판을 여유(옷 둘레 − 몸 둘레) 색으로 칠하고, 소매·덧댐처럼 판단하지 않는 부분은 회색으로 둔다.
 // fine: 천 시뮬레이션(cloth.ts)용으로 상의 몸판·소매 그물망을 약 1.2cm 간격으로 촘촘하게 만든다. 모양과 치수는 같다.
-export type GarmentOptions={frontTexture?:THREE.Texture;fitView?:boolean;fine?:boolean};
+export type GarmentOptions={photo?:GarmentPhoto;fitView?:boolean;fine?:boolean};
 // group.userData.fitEase: 핏 보기 색의 근거가 된 대표 높이의 여유(cm). 상의는 가슴, 하의는 엉덩이, 모자는 머리둘레.
 export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfile,thumbnail=false,options:GarmentOptions={}):THREE.Group {
  const group=new THREE.Group();group.name=product.id;
- const fit=options.fitView===true;
- const mat=fit?new THREE.MeshStandardMaterial({vertexColors:true,roughness:.8,side:THREE.DoubleSide}):fabricMaterial(product.color,thumbnail?undefined:fabricKind(product));
- const trim=fit?new THREE.MeshStandardMaterial({color:NO_FIT_DATA,roughness:.9,side:THREE.DoubleSide}):trimMaterial(product.color);
+ const fit=options.fitView===true,photo=options.photo,textured=Boolean(photo)&&product.slot!=='hat';
+ const kind=fabricKind(product),wantKind=product.slot==='top'?'top':'bottom';
+ const ready:ReadyPhoto|null=!fit&&!thumbnail&&photo?.front?.texture&&photo.back?.texture&&photo.front.layout.kind===wantKind&&photo.back.layout.kind===wantKind
+  ?{front:photo.front as Required<PhotoSide>,back:photo.back as Required<PhotoSide>,color:photo.color??product.color}:null;
+ const baseColor=ready?ready.color:product.color,photoMats=ready?photoMaterials(ready,kind):null;
+ const mat=fit?new THREE.MeshStandardMaterial({vertexColors:true,roughness:.8,side:THREE.DoubleSide}):fabricMaterial(baseColor,thumbnail?undefined:kind);
+ const trim=fit?new THREE.MeshStandardMaterial({color:NO_FIT_DATA,roughness:.9,side:THREE.DoubleSide}):trimMaterial(baseColor);
  // 정점 색이 없는 부분(소매·챙)은 핏 보기에서 회색 재질을 쓴다.
  const plain=fit?trim:mat;
  const fitRings:Array<{part:string;y:number;ease:number}>=[];group.userData.fitRings=fitRings;
@@ -298,9 +337,8 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
    // 촘촘한 그물망에서는 밑단·카라·줄무늬 띠도 몸판과 같은 분할(112)로 만들어, 시뮬레이션 뒤 몸판을 따라 옮겼을 때 몸판에 묻히지 않게 한다.
    const segments=options.fine?112:64,panel=ringMesh(rings,mat,segments);panel.name='top-body';group.add(panel);
    // 밑단 띠와 카라(목 둘레 띠). 카라는 본체 목선과 같은 높이 보정을 그대로 따른다.
-   const hem=bandRings(rings,bottom,bottom+.024,.0018,y=>({z:torsoZ(y),n:teeN(y)}));group.add(ringMesh(hem,trim,segments));
-   const textured=Boolean(options.frontTexture);
-   if(!shirt)group.add(ringMesh(rings.filter(r=>r.y>=top-.031).map(r=>({...r,rx:r.rx+.0016,rz:r.rz+.0016})),trim,segments));
+   const hem=bandRings(rings,bottom,bottom+.024,.0018,y=>({z:torsoZ(y),n:teeN(y)})),hemBand=ringMesh(hem,trim,segments);hemBand.name='top-hem';group.add(hemBand);
+   if(!shirt){const neckBand=ringMesh(rings.filter(r=>r.y>=top-.031).map(r=>({...r,rx:r.rx+.0016,rz:r.rz+.0016})),trim,segments);neckBand.name='top-neckband';group.add(neckBand);}
    else{
      // 오픈카라(캠프 칼라): 목둘레에 붙어 목 뒤에서 2.4cm 서 있다가(스탠드) 둥글게 바깥으로 접혀 어깨·등에 눕는(폴) 띠다.
      // 앞쪽 끝은 V 목선이 시작되는 곳(목선 각도로 가운데에서 ±0.75rad)에서 끝나며, 폴이 길어져 뾰족한 카라 끝이 가슴에 눕는다.
@@ -320,7 +358,7 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
       const t=(v-.45)/.55,d=t*(stand+fall)-stand;
       return d<=0?seam.clone().addScaledVector(out,.01).addScaledVector(up,-d):below(a,seam.y-d,.01+.003*t);
      };
-     group.add(patch(collar,options.fine?72:48,10,trim));
+     const collarPatch=patch(collar,options.fine?72:48,10,trim);collarPatch.name='top-collar';group.add(collarPatch);
      if(!textured)for(const s of [-1,1]){
       // 라펠: V 가장자리(카라 끝에서 첫 단추 위까지)를 따라 바깥으로 젖혀진 천. 위에서 3.2cm 폭으로 시작해 아래로 갈수록 좁아진다.
       group.add(patch((u,v)=>{
@@ -387,14 +425,17 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
        const sleeve=loftMesh(sleeveRings.map(place),plain);sleeve.name='sleeve';group.add(sleeve);
        // 소매단 접단: 소매단에서 어깨 쪽으로 2cm, 바깥으로 1.6mm 띄운 띠.
        const cuffBand=loftMesh([place(outward(cuff)),place(outward(hemStart))],trim);cuffBand.name='cuff';group.add(cuffBand);
+       if(ready&&photoMats&&ready.front.layout.kind==='top'&&ready.back.layout.kind==='top'){
+         // 소매 고리의 i번째 점은 진동 둘레 각도 a=i/SEG·2π(0=어깨점, π=겨드랑이, sin>0=앞)이고, 오른쪽 소매는 점 순서를 뒤집어 만들었다.
+         const front=ready.front.layout,back=ready.back.layout,s=side as 1|-1;
+         const sleeveMap=(alongOf:(j:number)=>number):PhotoMapper=>(_,k)=>{
+          const j=Math.floor(k/(SEG+1)),stored=k%(SEG+1),i=s>0?SEG-stored:stored,a=i/SEG*Math.PI*2,q=(1-Math.cos(a))/2,along=alongOf(j);
+          return {front:sleevePoint(front,'front',s,along,q),back:sleevePoint(back,'back',s,along,q),facing:Math.sin(a)};
+         };
+         applyPhoto(sleeve,ready,photoMats,sleeveMap(j=>j/steps));
+         applyPhoto(cuffBand,ready,photoMats,sleeveMap(j=>j?Math.max(0,end-.02)/end:1));
+       }
      }
-   }
-   if(options.frontTexture&&!fit){
-     // 평면 사진 앞면: 가슴 폭(가장 넓은 몸통 반폭)을 기준으로 사진을 가로로 펴고, 좁아지는 목·어깨 쪽은 옆을 잘라 낸다(늘리지 않는다).
-     const texture=options.frontTexture,frontMaterial=new THREE.MeshStandardMaterial({map:texture,roughness:.9,side:THREE.DoubleSide});
-     const yTop=top-.004,yBottom=bottom+.006,halfWidth=Math.max(...rings.filter(r=>r.y>bottom+.05&&r.y<shoulderY-.05).map(r=>r.rx))*.99;
-     const front=patch((u,v)=>{const y=yTop+(yBottom-yTop)*v,r=radiiAt(rings,y),x=Math.max(-r.rx*.99,Math.min(r.rx*.99,(u-.5)*2*halfWidth));return new THREE.Vector3(x,y,surfaceZ(rings,x,y,1,.0018));},24,32,frontMaterial,(u,v)=>[u,1-v]);
-     front.name='front-texture';group.add(front);
    }
    if(shirt&&!textured){
      // 앞 단추 여밈선(플래킷)과 단추, 착용자 왼쪽(+x) 가슴 주머니.
@@ -405,10 +446,18 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
      const pocketTop=top-.19,pocketBottom=top-.305;
      group.add(patch((u,v)=>{const x=.06+u*.115,y=pocketTop+(pocketBottom-pocketTop)*v;return new THREE.Vector3(x,y,surfaceZ(rings,x,y,1,.003));},6,6,trim));
    }
-   if(product.silhouette==='stripe'&&!fit){
+   if(product.silhouette==='stripe'&&!fit&&!textured){
      const stripeMat=new THREE.MeshStandardMaterial({color:'#37404d',roughness:.9,side:THREE.DoubleSide});
      const upper=shoulderY-.14;
      const at=(y:number)=>{const r=radiiAt(rings,y);return {y,rx:r.rx+.0018,rz:r.rz+.0018,z:torsoZ(y),n:teeN(y)};};for(let y=bottom+.05;y<upper;y+=.04)group.add(ringMesh([at(y),at(y+.012)],stripeMat,segments));
+   }
+   if(ready&&photoMats&&ready.front.layout.kind==='top'&&ready.back.layout.kind==='top'){
+     // 몸판·밑단·목 띠·카라: 높이는 목 옆(위끝)~밑단 비율, 둘레 방향은 그 높이 몸판 고리 중심에서 잰 각도로 사진에 옮긴다.
+     const front=ready.front.layout,back=ready.back.layout,t=(y:number)=>(top-y)/(top-bottom);
+     // 그 방향 3D 앞 목선 깊이(위끝 대비 비율). 앞 사진의 목선과 맞추는 데 쓴다.
+     const neckLine=scoop(top),neckDepth=(phi:number)=>Math.max(0,-(neckLine?.(phi)??0))/(top-bottom);
+     const torsoMap:PhotoMapper=p=>{const r=radiiAt(rings,p.y),phi=Math.atan2((p.z-r.z)/r.rz,(p.x-r.x)/r.rx);return {front:torsoPoint(front,'front',t(p.y),phi,neckDepth(phi)),back:torsoPoint(back,'back',t(p.y),phi),facing:Math.sin(phi)};};
+     for(const name of ['top-body','top-hem','top-neckband','top-collar']){const mesh=group.getObjectByName(name);if(mesh instanceof THREE.Mesh)applyPhoto(mesh,ready,photoMats,torsoMap);}
    }
  } else if(product.slot==='bottom'){
    // 판매자가 평면 바지 사진에서 잰 실루엣(legShape)이 있으면, 실측이 빈 기장·밑위·엉덩이는 사진 비율로 채우고 다리 폭 변화를 사진대로 만든다.
@@ -461,8 +510,8 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
    pants.userData.pinned=[(seat.length-pinRings)*N,seat.length*N];group.add(pants);
    for(const {side:s,rings:sideLeg,onLeg} of legs){
      // 밑단 접단과 스티치 선
-     group.add(ringMesh(bandRings(sideLeg,hem,hem+.03,.0016,onLeg),trim,N));
-     if(product.style==='carpenter'){
+     const hemBand=ringMesh(bandRings(sideLeg,hem,hem+.03,.0016,onLeg),trim,N);hemBand.name='bottom-hem';group.add(hemBand);
+     if(product.style==='carpenter'&&!textured){
        // 옆 카고 주머니와 라벨: 바깥쪽 옆선(a=0)에서 뒤쪽으로 치우친 곳에 다리 단면을 따라 붙인다.
        const y0=hem+.06,y1=Math.min(y0+.21,crotch-.02);
        if(y1-y0>.08){
@@ -473,7 +522,7 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
        }
      }
    }
-   if(product.style==='carpenter'){
+   if(product.style==='carpenter'&&!textured){
      // 뒷면 패치 주머니 두 개
      for(const s of [-1,1])group.add(patch((u,v)=>{const x=s*(.03+u*.115),y=waistY-.085+(-.13)*v;return new THREE.Vector3(x,y,surfaceZ(seat,x,y,-1,.004));},6,6,trim));
    }
@@ -486,6 +535,17 @@ export function makeGarment(product:Product,size:SizeMeasurements,body:BodyProfi
      loop.position.set(bandX*1.014*Math.cos(angle),y,torsoZ(y)+bandZ*1.014*Math.sin(angle));loop.rotation.y=Math.atan2(-tz,tx);loop.castShadow=true;group.add(loop);
    }
    const flyY=waistY-.04-.055,fly=new THREE.Mesh(new THREE.BoxGeometry(.004,.11,.004),trim);fly.position.set(0,flyY,torsoZ(flyY)+radiiAt(seat,flyY).rz+.001);group.add(fly);
+   if(ready&&photoMats&&ready.front.layout.kind==='bottom'&&ready.back.layout.kind==='bottom'){
+     // 가랑이 위(엉덩이·허리밴드)는 허리~가랑이 비율과 엉덩이 고리 중심에서 잰 각도, 그 아래 다리는 가랑이~밑단 비율과 그 다리 고리
+     // 중심에서 잰 각도(0=바깥 옆선, π/2=앞)로 사진에 옮긴다.
+     const front=ready.front.layout as BottomLayout,back=ready.back.layout as BottomLayout;
+     const pantsMap:PhotoMapper=p=>{
+      if(p.y>=crotch){const r=radiiAt(seat,p.y),phi=Math.atan2((p.z-r.z)/r.rz,(p.x-r.x)/r.rx),t=(waistY-p.y)/(waistY-crotch);return {front:seatPoint(front,'front',t,phi),back:seatPoint(back,'back',t,phi),facing:Math.sin(phi)};}
+      const s:1|-1=p.x>=0?1:-1,leg=legs.find(l=>l.side===s)!,r=radiiAt(leg.rings,p.y),theta=Math.atan2((p.z-r.z)/r.rz,s*(p.x-r.x)/r.rx),t=(crotch-p.y)/(crotch-hem);
+      return {front:legPoint(front,'front',s,t,theta),back:legPoint(back,'back',s,t,theta),facing:Math.sin(theta)};
+     };
+     group.traverse(o=>{if(o instanceof THREE.Mesh&&['bottom-body','bottom-hem','bottom-waistband'].includes(o.name))applyPhoto(o,ready,photoMats,pantsMap);});
+   }
  } else {
    const circ=(size.headCirc??57)/100;// 마네킹 머리는 가로보다 앞뒤가 깊고(반폭 7.8cm, 반깊이 10cm) 중심이 앞으로 치우쳐 있어 모자도 같은 비율·위치로 만든다.
    const head=shape.torso(1.66*k),base=H-HAT_BASE_DROP,crownH=.118,hz=HEAD_Z*k+shift(head,shape.neutralTorso(1.66*k)).z;

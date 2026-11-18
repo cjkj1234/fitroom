@@ -13,6 +13,7 @@ import { morphedPositions,type MannequinMesh } from '@/lib/wardrobe/mannequin-me
 import { buildHair } from '@/lib/wardrobe/hair';
 import { fabricNormalMap } from '@/lib/wardrobe/fabric';
 import { DEFAULT_APPEARANCE,hairColor,skinColor,type Appearance } from '@/lib/wardrobe/appearance';
+import { createPhotoCache } from '@/lib/wardrobe/photo-assets';
 import type { DrapeRequest,DrapeResponse } from '@/lib/wardrobe/drape-worker';
 // 개발 서버에서는 이 컴포넌트의 import.meta.url이 file:// 주소라 new URL(…, import.meta.url)로 만든 Worker 주소를 브라우저가 거부한다.
 // 그래서 Vite가 묶어 준 Worker 주소를 직접 받아 쓴다.
@@ -39,7 +40,7 @@ function readFitView(){try{return typeof window!=='undefined'&&window.sessionSto
 function writeFitView(on:boolean){try{window.sessionStorage.setItem(FIT_VIEW_KEY,on?'1':'0');}catch{}}
 
 // 상의·하의는 먼저 절차형 모양으로 보여 주고, Worker에서 처짐 시뮬레이션이 끝나면 정점 위치를 바꿔 끼운다. 같은 옷·치수·체형이면 결과를 다시 쓴다.
-const drapeKey=(request:Omit<DrapeRequest,'key'>)=>JSON.stringify([{...request.product,frontTexture:undefined},request.size,request.body.measurements,request.fitView,request.textured,request.under&&[request.under.product.id,request.under.size]]);
+const drapeKey=(request:Omit<DrapeRequest,'key'>)=>JSON.stringify([{...request.product,photos:undefined},request.size,request.body.measurements,request.fitView,request.textured,request.under&&[request.under.product.id,request.under.size,request.under.textured]]);
 // final이 거짓이면 시뮬레이션 중간 모양이다. 법선은 빠른 계산만 하고, 끝난 것으로 표시하지 않는다.
 // 핏 보기로 만든 옷(정점 색이 있는 조각)이면 실측 높이(measured) 정점을 시뮬레이션 핏 지도 색으로 바꾼다. 칠했으면 true를 돌려준다.
 type Draped={positions:Float32Array[];fit?:Float32Array[]};
@@ -89,7 +90,7 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
   const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(hair.positions,3));geometry.setAttribute('uv',new THREE.BufferAttribute(hair.uvs,2));geometry.setIndex(new THREE.BufferAttribute(hair.indices,1));geometry.computeVertexNormals();
   const mesh3=new THREE.Mesh(geometry,makeHairMaterial(appearance));mesh3.name='hair';mesh3.castShadow=true;mesh3.receiveShadow=true;a.scene.add(mesh3);hairMesh.current=mesh3;
  }
- const clickRef=useRef(onGarmentClick),textureCache=useRef(new Map<string,THREE.Texture>()),textureLoading=useRef(new Set<string>());
+ const clickRef=useRef(onGarmentClick),photoCache=useRef<ReturnType<typeof createPhotoCache>|null>(null);
  const drapeWorker=useRef<Worker|null>(null),drapeCache=useRef(new Map<string,Draped>()),drapePending=useRef(new Set<string>()),drapeTimer=useRef<number|null>(null);
  const [status,setStatus]=useState('loading'),[draping,setDraping]=useState(false),[simLegend,setSimLegend]=useState(false),[drag,setDrag]=useState(false),[view,setView]=useState('정면'),[hoverName,setHoverName]=useState<string|null>(null),[fitView,setFitView]=useState(readFitView);
  function update(){const a=api.current;if(!a)return;const {body,outfit,products,fitView,appearance}=latest.current;
@@ -99,12 +100,16 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
    let minY=Infinity,maxY=-Infinity;const vertex=new THREE.Vector3();a.avatar.traverse(o=>{if(o instanceof THREE.Mesh){const positions=o.geometry.getAttribute('position');for(let i=0;i<positions.count;i++){o.getVertexPosition(i,vertex);minY=Math.min(minY,vertex.y);maxY=Math.max(maxY,vertex.y);}}});if(Number.isFinite(minY)&&maxY>minY){a.avatar.scale.y=body.measurements.height/100/(maxY-minY);a.avatar.position.y=-minY*a.avatar.scale.y;}
    while(a.clothes.children.length){const item=a.clothes.children[0];a.clothes.remove(item);disposeGroup(item);}
    const requests:DrapeRequest[]=[];let simPainted=false;
-   const bottomItem=Object.values(outfit).map(item=>{const p=products.find(product=>product.id===item.productId);const s=p?.sizes.find(candidate=>candidate.label===item.size);return p&&s&&p.slot==='bottom'?{product:p,size:s}:null;}).find(Boolean)??undefined;
+   // 사진이 있는 상품은 불러오는 동안에도 사진 모드 조각 구성({})으로 만들어, 사진이 도착해 다시 만들 때 처짐 결과를 그대로 쓴다.
+   // 사진 배치를 재지 못했으면(null) 사진 없이 원래 모양으로 그린다. Worker에는 사진 자체를 보내지 않는다.
+   const photoFor=(p:Product)=>{const loaded=photos().get(p);return loaded===null?undefined:loaded??(p.photos?{}:undefined);};
+   const lean=(p:Product):Product=>({...p,photos:undefined});
+   const bottomItem=Object.values(outfit).map(item=>{const p=products.find(product=>product.id===item.productId);const s=p?.sizes.find(candidate=>candidate.label===item.size);return p&&s&&p.slot==='bottom'?{product:lean(p),size:s,textured:Boolean(photoFor(p))}:null;}).find(Boolean)??undefined;
    Object.values(outfit).forEach(item=>{
     const p=products.find(product=>product.id===item.productId);const s=p?.sizes.find(candidate=>candidate.label===item.size);if(!p||!s)return;
-    const texture=textureFor(p),fine=p.slot==='top'||p.slot==='bottom',garment=makeGarment(p,s,body,false,{frontTexture:texture,fitView,fine});a.clothes.add(garment);
+    const photo=photoFor(p),fine=p.slot==='top'||p.slot==='bottom',garment=makeGarment(p,s,body,false,{photo,fitView,fine});a.clothes.add(garment);
     if(!fine)return;
-    const request={product:p,size:s,body,fitView,textured:Boolean(texture),under:p.slot==='top'?bottomItem:undefined},key=drapeKey(request),cached=drapeCache.current.get(key);garment.userData.drapeKey=key;
+    const request={product:lean(p),size:s,body,fitView,textured:Boolean(photo),under:p.slot==='top'?bottomItem:undefined},key=drapeKey(request),cached=drapeCache.current.get(key);garment.userData.drapeKey=key;
     if(!cached||!applyDrape(garment,cached.positions))requests.push({key,...request});
     else if(fitView&&cached.fit&&paintSimFit(garment,cached.fit))simPainted=true;
    });
@@ -144,27 +149,18 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
    setDraping(drapePending.current.size>0);
   },300);
  }
- // 평면 사진에서 만든 앞면 텍스처는 처음 쓸 때 불러와 캐시하고, 로드가 끝나면 옷을 다시 만든다. 그 전에는 색만으로 먼저 보여 준다.
- function textureFor(product:Product){
-  if(!product.frontTexture)return undefined;
-  const source=product.frontTexture,key=`${product.id}:${source.length}:${source.slice(-24)}`,cached=textureCache.current.get(key);
-  if(cached)return cached;
-  if(!textureLoading.current.has(key)){
-   textureLoading.current.add(key);
-   new THREE.TextureLoader().load(source,texture=>{texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=4;textureCache.current.set(key,texture);textureLoading.current.delete(key);update();},undefined,()=>{textureLoading.current.delete(key);});
-  }
-  return undefined;
- }
+ // 상품 사진(앞·뒤)은 처음 쓸 때 불러와 텍스처와 배치를 만들고, 끝나면 옷을 다시 만든다. 그 전에는 색만으로 먼저 보여 준다.
+ function photos(){return photoCache.current??=createPhotoCache(()=>update());}
  useEffect(()=>{
    const el=host.current;if(!el)return;let renderer:THREE.WebGLRenderer;const pending=drapePending.current;
    try{renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});}catch{const timer=window.setTimeout(()=>setStatus('error'),0);return()=>window.clearTimeout(timer);}
-   renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.setClearColor(0x000000,0);el.appendChild(renderer.domElement);
+   renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.setClearColor(0x000000,0);el.appendChild(renderer.domElement);
    const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(31,1,.01,20);camera.position.set(0,1.05,3.8);addStoreEnvironment(scene);
    // 부드러운 스튜디오 반사광: 원단과 마네킹의 음영이 납작해 보이지 않게 한다.
    const pmrem=new THREE.PMREMGenerator(renderer),environment=pmrem.fromScene(new RoomEnvironment(),.04).texture;scene.environment=environment;scene.environmentIntensity=.3;
    const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,.87,0);controls.enablePan=false;controls.minDistance=2.0;controls.maxDistance=5;controls.minPolarAngle=.6;controls.maxPolarAngle=1.7;controls.update();
    scene.add(new THREE.HemisphereLight(0xffffff,0xaaaeb3,1.15));
-   const key=new THREE.DirectionalLight(0xfff3e8,2.9);key.position.set(-2,4,3);key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.camera.left=-2;key.shadow.camera.right=2;key.shadow.camera.top=3;key.shadow.camera.bottom=-1;key.shadow.bias=-.0006;key.shadow.normalBias=.012;scene.add(key);
+   const key=new THREE.DirectionalLight(0xfff3e8,2.9);key.position.set(-2,4,3);key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.camera.left=-2;key.shadow.camera.right=2;key.shadow.camera.top=3;key.shadow.camera.bottom=-1;key.shadow.bias=-.0006;key.shadow.normalBias=.012;key.shadow.radius=4;scene.add(key);
    const fill=new THREE.DirectionalLight(0xe1e6f1,1.4);fill.position.set(3,2,-2);scene.add(fill);
    // 뒤 위쪽에서 비추는 윤곽광: 머리카락과 어깨선이 배경에서 떨어져 보이게 한다.
    const rim=new THREE.DirectionalLight(0xffffff,.9);rim.position.set(0,3,-3);scene.add(rim);
@@ -182,7 +178,7 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
    };
    const setHover=(id:string|null)=>{
      if(id===hoverId)return;hoverId=id;
-     clothes.children.forEach(group=>{const on=group.name===id;group.traverse(o=>{if(o instanceof THREE.Mesh&&o.material instanceof THREE.MeshStandardMaterial){o.material.emissive.set(on?0x1d3a8a:0x000000);o.material.emissiveIntensity=on?.5:0;}});});
+     clothes.children.forEach(group=>{const on=group.name===id;group.traverse(o=>{if(o instanceof THREE.Mesh)for(const m of Array.isArray(o.material)?o.material:[o.material])if(m instanceof THREE.MeshStandardMaterial){m.emissive.set(on?0x1d3a8a:0x000000);m.emissiveIntensity=on?.5:0;}});});
      renderer.domElement.style.cursor=id?'pointer':'';setHoverName(id?latest.current.products.find(product=>product.id===id)?.name??null:null);render();
    };
    const dom=renderer.domElement;
@@ -207,7 +203,7 @@ export default function AvatarView({body,outfit,products,storeName,onDrop,onGarm
       mannequin.current={positions:new Float32Array(geometry.getAttribute('position').array),indices:new Uint32Array(geometry.getIndex()!.array),targets:Object.fromEntries(Object.entries(dictionary).map(([name,index])=>[name,new Float32Array(morphs[index].array)])),names:Object.keys(dictionary)};
      }
      avatar.add(g.scene);setStatus('ready');update();},undefined,()=>setStatus('error'));
-   return()=>{disposed=true;if(drapeTimer.current!==null)window.clearTimeout(drapeTimer.current);drapeWorker.current?.terminate();drapeWorker.current=null;pending.clear();observer.disconnect();dom.removeEventListener('pointerdown',onDown);dom.removeEventListener('pointerup',onUp);dom.removeEventListener('pointermove',onMove);dom.removeEventListener('pointerleave',onLeave);controls.dispose();disposeGroup(scene);textureCache.current.forEach(texture=>texture.dispose());textureCache.current.clear();environment.dispose();pmrem.dispose();renderer.dispose();renderer.domElement.remove();api.current=null;};
+   return()=>{disposed=true;if(drapeTimer.current!==null)window.clearTimeout(drapeTimer.current);drapeWorker.current?.terminate();drapeWorker.current=null;pending.clear();observer.disconnect();dom.removeEventListener('pointerdown',onDown);dom.removeEventListener('pointerup',onUp);dom.removeEventListener('pointermove',onMove);dom.removeEventListener('pointerleave',onLeave);controls.dispose();disposeGroup(scene);photoCache.current?.dispose();photoCache.current=null;environment.dispose();pmrem.dispose();renderer.dispose();renderer.domElement.remove();api.current=null;};
  },[]);
  useEffect(()=>{clickRef.current=onGarmentClick;});
  useEffect(()=>{latest.current={body,outfit,products,fitView,appearance};update();},[body,outfit,products,fitView,appearance]);

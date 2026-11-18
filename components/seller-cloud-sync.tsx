@@ -4,7 +4,8 @@ import {useCallback,useEffect,useState} from 'react';
 import {CheckCircle2,Cloud,CloudDownload,CloudUpload,LoaderCircle,LogIn,RefreshCw,TriangleAlert} from 'lucide-react';
 import {AlertDialog,AlertDialogAction,AlertDialogCancel,AlertDialogContent,AlertDialogDescription,AlertDialogFooter,AlertDialogHeader,AlertDialogTitle,AlertDialogTrigger} from '@/components/ui/alert-dialog';
 import {Dialog,DialogContent,DialogDescription,DialogHeader,DialogTitle,DialogTrigger} from '@/components/ui/dialog';
-import {parseStoredSellerProducts,SELLER_PRODUCTS_STORAGE_KEY} from '@/lib/seller/products';
+import {parseStoredSellerProducts,SELLER_PRODUCTS_STORAGE_KEY,type SellerProduct} from '@/lib/seller/products';
+import {markPhotosUploaded,readStoredPhotos} from '@/lib/seller/photo-store';
 import {parseStoredSellerStore,SELLER_STORE_STORAGE_KEY} from '@/lib/seller/store';
 import {createSellerWorkspacePayload,type SellerWorkspaceSnapshot} from '@/lib/seller/workspace';
 
@@ -27,10 +28,25 @@ export default function SellerCloudSync(){
   return createSellerWorkspacePayload(products,store);
  }
 
+ // 이 브라우저에만 있는 상품 사진(아직 올리지 않은 버전)을 상품마다 올린다. 상품 정보를 먼저 저장해야 서버가 받는다.
+ async function uploadPhotos(products:SellerProduct[]){
+  const stored=await readStoredPhotos();let uploaded=0,failed=0;
+  for(const product of products){
+   const entry=stored[product.id];if(!product.photo||!entry||entry.version!==product.photo.version||entry.uploadedVersion===entry.version)continue;
+   try{
+    const response=await fetch('/api/seller/photos',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({productId:product.id,version:entry.version,photos:entry.photos})});
+    if(!response.ok)throw new Error(String(response.status));
+    await markPhotosUploaded(product.id,entry.version);uploaded++;
+   }catch{failed++;}
+  }
+  return {uploaded,failed};
+ }
  async function upload(){
   const payload=localPayload();if(!payload){setError('이 기기의 상품 또는 매장 정보를 확인해 주세요.');return;}
   setSaving(true);setError('');setMessage('');
-  try{const response=await fetch('/api/seller/workspace',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await readResponse(response);setRemote(data);setMessage(`상품 ${data.summary.productCount}개와 매장 설정을 서버에 저장했어요.`);}catch(cause){const issue=cause as Error&{status?:number};setNeedsSignIn(issue.status===401);setError(issue.message);}finally{setSaving(false);}
+  try{const response=await fetch('/api/seller/workspace',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await readResponse(response);setRemote(data);
+   const photos=await uploadPhotos(payload.products);
+   setMessage(`상품 ${data.summary.productCount}개${photos.uploaded?`, 상품 사진 ${photos.uploaded}벌`:''}과 매장 설정을 서버에 저장했어요.${photos.failed?` 상품 사진 ${photos.failed}벌은 올리지 못했어요. 다시 저장해 주세요.`:''}`);}catch(cause){const issue=cause as Error&{status?:number};setNeedsSignIn(issue.status===401);setError(issue.message);}finally{setSaving(false);}
  }
 
  function download(){
@@ -46,6 +62,6 @@ export default function SellerCloudSync(){
   <section className="sync-summary" aria-live="polite">{loading?<div className="sync-loading"><LoaderCircle/>서버 저장 상태를 확인하고 있어요.</div>:error?<div className="sync-error"><TriangleAlert/><span><strong>동기화 상태를 확인하지 못했어요</strong><small>{error}</small>{needsSignIn&&<a href={signInPath()}><LogIn/>로그인하기</a>}</span></div>:<><div className="sync-cloud-icon"><Cloud/></div><div><small>서버에 저장된 작업</small><strong>{remote?.workspace?`${remote.summary.productCount}개 상품 · 매장 ${remote.summary.hasStore?'1개':'없음'}`:'저장된 작업이 없어요'}</strong><span>{formatDate(remote?.summary.updatedAt??null)}</span></div><button type="button" onClick={()=>void refresh()} aria-label="서버 저장 상태 새로고침"><RefreshCw/></button></>}</section>
   <div className="sync-actions"><AlertDialog><AlertDialogTrigger asChild><button type="button" disabled={loading||saving}><CloudUpload/><span><strong>{saving?'저장 중…':'이 기기 데이터를 서버에 저장'}</strong><small>현재 상품과 매장 설정으로 서버 데이터를 갱신합니다.</small></span></button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>서버 데이터를 갱신할까요?</AlertDialogTitle><AlertDialogDescription>서버에 저장된 이전 상품과 매장 설정이 이 기기의 현재 데이터로 바뀝니다.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>취소</AlertDialogCancel><AlertDialogAction onClick={()=>void upload()}>서버에 저장</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
    <AlertDialog><AlertDialogTrigger asChild><button type="button" disabled={loading||saving||!remote?.workspace}><CloudDownload/><span><strong>서버 데이터를 이 기기로 불러오기</strong><small>{remote?.workspace?'현재 브라우저 데이터를 서버 내용으로 바꿉니다.':'먼저 다른 기기에서 서버에 저장해 주세요.'}</small></span></button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>이 기기의 데이터를 바꿀까요?</AlertDialogTitle><AlertDialogDescription>현재 브라우저의 상품과 매장 설정이 서버에 저장된 내용으로 교체됩니다.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>취소</AlertDialogCancel><AlertDialogAction onClick={download}>불러오기</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></div>
-  {message&&<p className="sync-success"><CheckCircle2/>{message}</p>}<p className="sync-privacy">상품 텍스트와 매장 설정만 저장합니다. 상품 사진, 체형 사진, 이용자 보관함은 포함하지 않습니다.</p>
+  {message&&<p className="sync-success"><CheckCircle2/>{message}</p>}<p className="sync-privacy">상품 정보, 매장 설정, 3D에 입힌 상품 사진(옷 부분만 자른 앞·뒤 사진)을 저장합니다. 상품 사진은 게시한 상품이면 이용자 옷장에 보입니다. 체형 사진과 이용자 보관함은 포함하지 않습니다.</p>
  </DialogContent></Dialog>;
 }

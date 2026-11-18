@@ -9,8 +9,8 @@ import {drapeBottom,drapeTop} from './drape';
 import {DRAPE_BOTTOM,DRAPE_DEFAULTS} from './cloth';
 import type {BodyProfile,Product,SizeMeasurements} from './types';
 
-// under: 상의와 함께 입은 하의.
-export type DrapeRequest={key:string;product:Product;size:SizeMeasurements;body:BodyProfile;fitView:boolean;textured:boolean;under?:{product:Product;size:SizeMeasurements}};
+// under: 상의와 함께 입은 하의. textured: 상품 사진을 입혔는지(사진 모드 조각 구성). 사진 자체(product.photos)는 보내지 않는다.
+export type DrapeRequest={key:string;product:Product;size:SizeMeasurements;body:BodyProfile;fitView:boolean;textured:boolean;under?:{product:Product;size:SizeMeasurements;textured:boolean}};
 // partial: 시뮬레이션 중간 모양(done은 진행률 0~1). 마지막 응답에는 partial이 없다.
 // fit: 마지막 응답에서 조각마다 정점 순서의 [몸과의 틈(m), 둘레 방향 늘어남] 쌍(시뮬레이션하지 않은 조각은 빈 배열).
 export type DrapeResponse={key:string;positions:Float32Array[];ms:number;partial?:boolean;done?:number;fit?:Float32Array[]}|{key:string;error:string};
@@ -26,10 +26,10 @@ const dispose=(group:THREE.Group)=>group.traverse(o=>{if(o instanceof THREE.Mesh
 const post=(response:DrapeResponse)=>(self as DedicatedWorkerGlobalScope).postMessage(response,'positions' in response?[...response.positions,...(response.fit??[])].map(p=>p.buffer):[]);
 const progress=(key:string,group:THREE.Group,started:number)=>(done:number)=>post({key,positions:positionsOf(group),ms:Math.round(performance.now()-started),partial:true,done});
 
-function drapedBottom(mesh:MannequinMesh,product:Product,size:SizeMeasurements,body:BodyProfile,show?:{key:string;started:number}){
- const key=JSON.stringify([{...product,frontTexture:undefined},size,body.measurements]),cached=bottoms.get(key);
+function drapedBottom(mesh:MannequinMesh,product:Product,size:SizeMeasurements,body:BodyProfile,textured:boolean,show?:{key:string;started:number}){
+ const key=JSON.stringify([{...product,photos:undefined},size,body.measurements,textured]),cached=bottoms.get(key);
  if(cached)return cached;
- const group=makeGarment(product,size,body,false,{fine:true});drapeBottom(group,mesh,body,DRAPE_BOTTOM,show&&progress(show.key,group,show.started));
+ const group=makeGarment(product,size,body,false,{fine:true,photo:textured?{}:undefined});drapeBottom(group,mesh,body,DRAPE_BOTTOM,show&&progress(show.key,group,show.started));
  const draped={positions:positionsOf(group),fit:fitOf(group)};dispose(group);
  bottoms.set(key,draped);while(bottoms.size>8)bottoms.delete(bottoms.keys().next().value!);
  return draped;
@@ -44,11 +44,11 @@ self.onmessage=async(event:MessageEvent<DrapeRequest|{warm:true}>)=>{
  try{
   const mesh=await loadMannequin(),started=performance.now();
   let positions:Float32Array[],fit:Float32Array[];
-  if(product.slot==='bottom'){const draped=drapedBottom(mesh,product,size,body,{key,started});positions=draped.positions.map(p=>new Float32Array(p));fit=draped.fit.map(f=>new Float32Array(f));}
+  if(product.slot==='bottom'){const draped=drapedBottom(mesh,product,size,body,textured,{key,started});positions=draped.positions.map(p=>new Float32Array(p));fit=draped.fit.map(f=>new Float32Array(f));}
   else{
-   // 앞면 사진 텍스처는 화면 쪽에만 있다. 조각 구성만 같으면 되므로 빈 텍스처를 넘긴다.
-   const group=makeGarment(product,size,body,false,{fine:true,fitView,frontTexture:textured?new THREE.Texture():undefined});
-   drapeTop(group,mesh,body,under&&{...under,positions:drapedBottom(mesh,under.product,under.size,body).positions},DRAPE_DEFAULTS,progress(key,group,started));
+   // 상품 사진 텍스처는 화면 쪽에만 있다. 조각 구성만 같으면 되므로 빈 사진({})을 넘긴다.
+   const group=makeGarment(product,size,body,false,{fine:true,fitView,photo:textured?{}:undefined});
+   drapeTop(group,mesh,body,under&&{...under,positions:drapedBottom(mesh,under.product,under.size,body,under.textured).positions},DRAPE_DEFAULTS,progress(key,group,started));
    positions=positionsOf(group);fit=fitOf(group);dispose(group);
   }
   post({key,positions,fit,ms:Math.round(performance.now()-started)});

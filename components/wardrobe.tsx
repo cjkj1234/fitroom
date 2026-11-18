@@ -7,7 +7,7 @@ import AvatarView from '@/components/avatar-view';
 import BodyEditor from '@/components/body-editor';
 import WardrobeCollection from '@/components/wardrobe-collection';
 import {publishedSellerCatalog} from '@/lib/seller/catalog';
-import {readSessionTextures} from '@/lib/seller/textures';
+import {readStoredPhotos,SELLER_PHOTOS_EVENT} from '@/lib/seller/photo-store';
 import {parseStoredSellerProducts,SELLER_PRODUCTS_STORAGE_KEY} from '@/lib/seller/products';
 import {parseStoredSellerStore,sellerStoreLayout,SELLER_STORE_MUSIC_LABELS,SELLER_STORE_STORAGE_KEY,SELLER_STORE_THEME_ACCENTS,SELLER_STORE_THEME_LABELS,SELLER_STORE_ZONE_LABELS,SELLER_STORE_ZONES,stepSellerStoreZone,type SellerStoreProfile,type SellerStoreZone} from '@/lib/seller/store';
 import {DEFAULT_BODY,parseStoredBody,sourceLabel,STORAGE_KEY} from '@/lib/wardrobe/body';
@@ -19,7 +19,7 @@ import {appendInterestEvent,parseStoredInterestLog,WARDROBE_INTEREST_STORAGE_KEY
 import {recommendWardrobeProducts} from '@/lib/wardrobe/recommendations';
 import {buildVirtualStores} from '@/lib/wardrobe/stores';
 import {mergePublicSellerProducts,mergePublicSellerStores,parsePublicSellerCatalogResponse,type PublicSellerStore} from '@/lib/wardrobe/public-catalog';
-import type {BodyProfile,Outfit,Product,Slot} from '@/lib/wardrobe/types';
+import type {BodyProfile,Outfit,Product,ProductPhotos,Slot} from '@/lib/wardrobe/types';
 import {objectParticle} from '@/lib/wardrobe/text';
 import {useWardrobeTools} from '@/lib/wardrobe/webmcp';
 
@@ -35,8 +35,9 @@ export default function Wardrobe(){
  const [collection,setCollection]=useState<WardrobeCollectionState>(()=>createWardrobeCollection()),[collectionOpen,setCollectionOpen]=useState(false);
  const sellerProfiles=useMemo(()=>mergePublicSellerStores(localSellerStore,remoteSellerStores),[localSellerStore,remoteSellerStores]);
  const sellerProfileByName=useMemo(()=>new Map(sellerProfiles.map(store=>[store.storeName,store])),[sellerProfiles]);
- const [sellerTextures,setSellerTextures]=useState<Record<string,string>>({});
- const sellerProducts=useMemo(()=>publishedSellerCatalog(mergePublicSellerProducts(localSellerProducts,remoteSellerStores),sellerTextures),[localSellerProducts,remoteSellerStores,sellerTextures]);
+ // 이 브라우저에 저장된 판매자 상품 사진(IndexedDB). 없는 상품은 서버에 올린 사진 주소를 쓴다.
+ const [sellerPhotos,setSellerPhotos]=useState<Record<string,ProductPhotos>>({});
+ const sellerProducts=useMemo(()=>publishedSellerCatalog(mergePublicSellerProducts(localSellerProducts,remoteSellerStores),sellerPhotos),[localSellerProducts,remoteSellerStores,sellerPhotos]);
  const catalog=useMemo(()=>[...sellerProducts,...PRODUCTS],[sellerProducts]);
  const stores=useMemo(()=>buildVirtualStores(catalog).map(store=>{const profile=sellerProfileByName.get(store.name);return profile?{...store,accent:SELLER_STORE_THEME_ACCENTS[profile.theme]}:store;}),[catalog,sellerProfileByName]);
  const storeProducts=useMemo(()=>activeStore?catalog.filter(item=>item.brand===activeStore):[],[activeStore,catalog]);
@@ -52,12 +53,13 @@ export default function Wardrobe(){
  const recommendedStoreNames=useMemo(()=>new Set(recommendations.map(item=>item.product.brand)),[recommendations]);
 
  useEffect(()=>{
-  const syncSellerProducts=()=>{setSellerTextures(readSessionTextures());try{setLocalSellerProducts(parseStoredSellerProducts(localStorage.getItem(SELLER_PRODUCTS_STORAGE_KEY)));}catch{setLocalSellerProducts([]);}};
+  const syncSellerPhotos=()=>{void readStoredPhotos().then(stored=>setSellerPhotos(Object.fromEntries(Object.values(stored).map(entry=>[entry.productId,entry.photos]))));};
+  const syncSellerProducts=()=>{syncSellerPhotos();try{setLocalSellerProducts(parseStoredSellerProducts(localStorage.getItem(SELLER_PRODUCTS_STORAGE_KEY)));}catch{setLocalSellerProducts([]);}};
   const syncSellerStore=()=>{try{setLocalSellerStore(parseStoredSellerStore(localStorage.getItem(SELLER_STORE_STORAGE_KEY)));}catch{setLocalSellerStore(null);}};
   const syncCollection=()=>{try{setCollection(parseStoredWardrobeCollection(localStorage.getItem(WARDROBE_COLLECTION_STORAGE_KEY)));}catch{setCollection(createWardrobeCollection());}};
   const hydrate=window.setTimeout(()=>{try{const stored=parseStoredBody(localStorage.getItem(STORAGE_KEY));if(stored){setBody(stored);setSaved(true);}}catch{}try{setAppearance(parseAppearance(localStorage.getItem(APPEARANCE_KEY)));}catch{}syncSellerProducts();syncSellerStore();syncCollection();},0);
   const handleStorage=(event:StorageEvent)=>{if(event.key===SELLER_PRODUCTS_STORAGE_KEY)syncSellerProducts();if(event.key===SELLER_STORE_STORAGE_KEY)syncSellerStore();if(event.key===WARDROBE_COLLECTION_STORAGE_KEY)syncCollection();};
-  window.addEventListener('storage',handleStorage);return()=>{window.clearTimeout(hydrate);window.removeEventListener('storage',handleStorage);};
+  window.addEventListener('storage',handleStorage);window.addEventListener(SELLER_PHOTOS_EVENT,syncSellerPhotos);return()=>{window.clearTimeout(hydrate);window.removeEventListener('storage',handleStorage);window.removeEventListener(SELLER_PHOTOS_EVENT,syncSellerPhotos);};
  },[]);
  useEffect(()=>{const controller=new AbortController();void fetch('/api/catalog/stores',{cache:'no-store',signal:controller.signal}).then(async response=>{const parsed=parsePublicSellerCatalogResponse(await response.json());if(!response.ok||!parsed)throw new Error('invalid public catalog');setRemoteSellerStores(parsed.stores);setCatalogStatus('ready');}).catch(error=>{if((error as Error).name!=='AbortError')setCatalogStatus('offline');});return()=>controller.abort();},[]);
  useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),3200);return()=>clearTimeout(timer);},[notice]);
@@ -113,7 +115,7 @@ export default function Wardrobe(){
     return <section className="closet-section" key={slot} ref={element=>{rackRefs.current[slot]=element;}}><div className="section-heading"><h3><span>RACK 0{index+1}</span>{SLOT_LABELS[slot]}<small>{items.length}</small></h3>{items.length>0&&<div className="scroll-buttons"><button aria-label={`${SLOT_LABELS[slot]} 이전 상품`} onClick={()=>rowRefs.current[slot]?.scrollBy({left:-220,behavior:'smooth'})}><ChevronLeft size={15}/></button><button aria-label={`${SLOT_LABELS[slot]} 다음 상품`} onClick={()=>rowRefs.current[slot]?.scrollBy({left:220,behavior:'smooth'})}><ChevronRight size={15}/></button></div>}</div>{items.length===0?<div className="empty-rack">이 상점에는 아직 {SLOT_LABELS[slot]} 상품이 없어요.</div>:<div className="product-row" ref={element=>{rowRefs.current[slot]=element;}}>{items.map(item=>{
      const worn=outfit[slot]?.productId===item.id;
      const favorite=collection.favoriteProductIds.includes(item.id);
-     return <article key={item.id} className={`product-card ${selected===item.id?'selected':''} ${worn?'worn':''} ${item.source==='seller'?'seller-item':''}`} draggable onDragStart={event=>{event.dataTransfer.setData('text/plain',item.id);event.dataTransfer.effectAllowed='copy';}}><button className="product-photo" aria-label={`${item.brand} ${item.name} ${worn?'벗기':'입어보기'}`} onClick={()=>toggleWear(item)}><img src={item.image} alt={item.source==='seller'?`${SLOT_LABELS[item.slot]} 기본 3D 참고 이미지`:`${item.name} ${item.colorName}의 참고용 3D 의상`} draggable={false}/>{item.source==='seller'&&<span className="seller-item-badge">판매자 등록</span>}{worn&&<span className="wearing-badge"><Check size={11}/>착용 중</span>}<span className="swatch" style={{background:item.color}}/></button><button type="button" className={`product-favorite ${favorite?'active':''}`} onClick={()=>toggleFavorite(item.id)} aria-label={`${item.name} ${favorite?'찜 해제':'찜하기'}`}><Heart fill={favorite?'currentColor':'none'}/></button><button className="product-description" aria-label={`${item.name} ${worn?'벗기':'입어보기'}`} onClick={()=>toggleWear(item)}><span>{item.brand}</span><strong>{item.name}</strong></button><button className={`wear-button ${worn?'is-worn':''}`} onClick={()=>toggleWear(item)} aria-label={`${item.name} ${worn?'벗기':'입어보기'}`}>{worn?<><X size={12}/>벗기</>:<><Plus size={12}/>입어보기</>}</button></article>;
+     return <article key={item.id} className={`product-card ${selected===item.id?'selected':''} ${worn?'worn':''} ${item.source==='seller'?'seller-item':''}`} draggable onDragStart={event=>{event.dataTransfer.setData('text/plain',item.id);event.dataTransfer.effectAllowed='copy';}}><button className="product-photo" aria-label={`${item.brand} ${item.name} ${worn?'벗기':'입어보기'}`} onClick={()=>toggleWear(item)}><img src={item.image} alt={item.photos?`${item.name} ${item.colorName} 평면 사진`:item.source==='seller'?`${SLOT_LABELS[item.slot]} 기본 3D 참고 이미지`:`${item.name} ${item.colorName}의 참고용 3D 의상`} draggable={false}/>{item.source==='seller'&&<span className="seller-item-badge">판매자 등록</span>}{worn&&<span className="wearing-badge"><Check size={11}/>착용 중</span>}<span className="swatch" style={{background:item.color}}/></button><button type="button" className={`product-favorite ${favorite?'active':''}`} onClick={()=>toggleFavorite(item.id)} aria-label={`${item.name} ${favorite?'찜 해제':'찜하기'}`}><Heart fill={favorite?'currentColor':'none'}/></button><button className="product-description" aria-label={`${item.name} ${worn?'벗기':'입어보기'}`} onClick={()=>toggleWear(item)}><span>{item.brand}</span><strong>{item.name}</strong></button><button className={`wear-button ${worn?'is-worn':''}`} onClick={()=>toggleWear(item)} aria-label={`${item.name} ${worn?'벗기':'입어보기'}`}>{worn?<><X size={12}/>벗기</>:<><Plus size={12}/>입어보기</>}</button></article>;
     })}</div>}</section>;
    })}
    <p className="catalog-note"><Info size={13}/> 옷걸이에서 고른 상품은 색상·실루엣을 단순화한 3D 의상으로 표현됩니다.</p></aside>
