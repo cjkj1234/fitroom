@@ -55,7 +55,7 @@ MediaPipe Pose Landmarker를 브라우저 Worker에서 돌려 관절과 사람 �
 
 | 항목 | 값 |
 |---|---|
-| 자동 테스트 | 176개 (GitHub Actions: 설치 → 테스트 → 타입 검사 → 빌드) |
+| 자동 테스트 | 187개 (GitHub Actions: 설치 → 테스트 → 타입 검사 → 빌드) |
 | 천 시뮬레이션 | 상의 입자 약 1만 개, 한 벌 약 1초 (개발 당시 노트북) |
 | 천 시뮬레이션 검사 | 몸 안으로 들어간 정점 0.5% 미만, 어깨·몸통 노출 3%·2% 이하를 실제 마네킹으로 검사 |
 | 광고 프롬프트 | 6개 판, 실제 모델 호출 56회 |
@@ -87,13 +87,13 @@ flowchart LR
 |---|---|
 | 화면 | React 19, TypeScript, Vinext(Vite), Tailwind CSS |
 | 3D | Three.js, MakeHuman CC0 마네킹, XPBD 천 시뮬레이션(직접 구현), SDF 충돌 |
-| AI | OpenAI `gpt-5-mini` Responses API + Structured Outputs, MediaPipe Pose Landmarker |
+| AI | OpenAI `gpt-5-mini` Responses API + Structured Outputs, MediaPipe Pose Landmarker, ISNet 배경 제거(onnxruntime-web WebGPU) |
 | 검증 | Zod (입력·출력·저장 데이터), Node.js 테스트 러너 |
 | 서버 | Cloudflare Workers, D1(SQLite) + Drizzle ORM, ChatGPT 로그인 |
 
 ## 개인정보와 보안
 
-- 체형 사진은 브라우저 안에서만 씁니다. 상품 사진은 옷 부분만 잘라 판매자 브라우저에 두고, 계정 동기화를 할 때만 서버에 올려 게시 상품의 이용자에게 보여 줍니다. OpenAI에는 텍스트로 된 상품 정보만 보냅니다.
+- 체형 사진은 브라우저 안에서만 씁니다. 상품 사진의 AI 배경 제거도 판매자 기기 안에서 돌립니다(모델 파일만 받아 옵니다). 상품 사진은 옷 부분만 잘라 판매자 브라우저에 두고, 계정 동기화를 할 때만 서버에 올려 게시 상품의 이용자에게 보여 줍니다. OpenAI에는 텍스트로 된 상품 정보만 보냅니다.
 - 공개 카탈로그 API는 게시 검증을 다시 거친 매장·상품만 내보내고, 계정 ID와 초안은 뺍니다.
 - OpenAI API 키는 서버 환경 변수로만 읽습니다. 키가 없으면 예시 문구를 AI 결과처럼 보여주지 않고 "연결 설정 필요"를 표시합니다.
 

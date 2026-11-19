@@ -35,6 +35,7 @@ Codex와 Claude Code는 프로젝트를 만드는 데 쓴 개발 도구이고(�
 | Three.js | 3D 아바타와 단순화한 모자·상의·하의 표시, 회전·확대 조작 |
 | Zod | 브라우저 저장 데이터, 광고 입력, API 응답 형식 검사 |
 | MediaPipe Tasks Vision | 정면·측면 사진에서 신체 포즈의 주요 지점 탐지 |
+| onnxruntime-web 1.31.1 | 판매자 브라우저의 WebGPU로 배경 제거 모델(ISNet) 실행. jsDelivr에서 버전을 고정해 읽음 |
 | `localStorage` | 편집 중인 판매자 상품·가상 매장과 이용자 체형·보관함·관심 신호를 현재 브라우저에 임시 저장 |
 | Cloudflare D1, Drizzle | 로그인 계정별 판매자 상품 텍스트와 가상 매장 설정을 서버에 저장하고 스키마 마이그레이션 관리 |
 | 공개 카탈로그 API | 게시 준비 검증을 통과한 서버 매장·상품만 이용자 가상거리에 전달하고 계정 ID·초안 제외 |
@@ -66,9 +67,20 @@ Codex와 Claude Code는 프로젝트를 만드는 데 쓴 개발 도구이고(�
 
 MediaPipe는 실제 신체 치수를 직접 측정하지 않는다. 원본 사진은 서버나 OpenAI API로 보내지 않고 메모리에서만 사용한다.
 
-### 4.3 직접 학습하거나 파인튜닝한 모델은 없음
+### 4.3 ISNet general-use: 상품 사진 배경 제거(2026-11 추가)
 
-이번 버전은 Hugging Face 모델 학습, LoRA, DreamBooth, 파인튜닝을 사용하지 않았다. 사전 학습된 OpenAI 모델과 MediaPipe 모델을 서비스 흐름에 연결했다.
+- 모델: [DIS](https://github.com/xuebinqin/DIS)의 ISNet general-use(Apache-2.0) 사전 학습 모델을 img.ly가 ONNX fp16으로 바꾼 [imgly/isnet-general-onnx](https://huggingface.co/imgly/isnet-general-onnx)(MIT, 88MB). 커밋을 고정하고 받은 파일의 SHA-256을 확인한다.
+- 입력: 판매자가 고른 상품 사진(1024×1024로 줄여 넣음)
+- 출력: 옷(전경)일 확률 마스크
+- 실행 위치: 판매자 브라우저(onnxruntime-web WebGPU). WebGPU가 없으면 쓰지 않고 배경색 방식으로 옷을 찾는다.
+- 후처리: 가장 큰 덩어리·구멍 메우기·가는 돌기와 옷걸이 제거·윤곽 확인은 프로젝트에서 작성한 규칙이다(`lib/seller/photo-texture.ts`).
+- 선정 과정: 실제 사진 6장으로 배경색 방식과 비교해 나무 바닥·문 앞 사진 3장에서 옷만 잘라냈다. 먼저 시험한 BiRefNet_lite(MIT)는 데스크톱에서는 비슷하게 잘랐지만 브라우저 메모리 한도(4GB)를 넘어 실행되지 않았다.
+
+원본 사진은 서버로 보내지 않는다. 모델 파일만 받아 온다.
+
+### 4.4 직접 학습하거나 파인튜닝한 모델은 없음
+
+이번 버전은 Hugging Face 모델 학습, LoRA, DreamBooth, 파인튜닝을 사용하지 않았다. 사전 학습된 OpenAI 모델, MediaPipe 모델, ISNet 모델을 서비스 흐름에 연결했다.
 
 ## 5. AI가 아닌 계산 기능
 

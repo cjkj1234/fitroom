@@ -33,3 +33,12 @@ test('사진이 비었거나 배경뿐이면 후보를 만들지 않는다',()=>
  assert.deepEqual(dominantColors(new Uint8ClampedArray(0),0,0),[]);
  assert.deepEqual(dominantColors(photo(100,100,[255,255,255],[]),100,100),[]);
 });
+
+test('옷 마스크를 주면 그 안의 색만 대표색으로 고른다(나무 바닥 같은 배경색 제외)',()=>{
+ // 사진 대부분이 나무색 바닥이고 가운데에 회색 옷이 있다.
+ const pixels=photo(200,240,[160,120,70],[{x0:70,y0:70,x1:130,y1:170,color:[96,98,100]}]);
+ const mask=new Uint8Array(200*240);for(let y=70;y<170;y++)for(let x=70;x<130;x++)mask[y*200+x]=1;
+ const colors=dominantColors(pixels,200,240,3,mask);
+ assert.equal(colors.length,1);
+ const rgb=hexToRgb(colors[0]);assert.ok(Math.abs(rgb[0]-96)<4&&Math.abs(rgb[2]-100)<4,`옷 색 ${colors[0]}`);
+});
