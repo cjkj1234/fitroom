@@ -201,14 +201,27 @@ export function bleedBackground(pixels:Uint8ClampedArray,mask:Uint8Array,width:n
 
 // 뒤 사진이 없을 때 앞 사진으로 뒤판을 만든다. 줄마다 몸판(바지는 엉덩이·각 다리) 옆쪽 띠를 좌우로 거울 반복해 채워,
 // 줄무늬·체크·원단 색은 그 높이 그대로 두고 가슴 프린트·단추·지퍼처럼 가운데에 있는 앞면 장식은 뒤에 옮기지 않는다. 소매는 그대로 둔다.
+// 상의는 폭 가득한 프린트가 옆쪽 띠(10~28%)까지 닿을 수 있어, 그 띠의 평균색이 옆선 바로 안쪽(3~7%) 원단 색과 크게 다르면
+// 그 줄은 옆선 쪽 좁은 띠(2~7%)로 채운다(줄무늬는 줄 전체가 같은 색이라 그대로 넓은 띠를 쓴다).
 export function synthesizeBack(pixels:Uint8ClampedArray,layout:PhotoLayout):Uint8ClampedArray<ArrayBuffer>{
  const out=new Uint8ClampedArray(pixels),{width}=layout;
  const tile=(y:number,[left,right]:Span,from:number,to:number)=>{
   const l=Math.round(left),r=Math.round(right),bandStart=Math.round(left+(right-left)*from),band=Math.max(2,Math.round((right-left)*(to-from)));
   for(let x=l;x<=r;x++){const o=x-l,k=Math.floor(o/band),w=o%band,src=clamp(bandStart+(k%2?band-1-w:w),0,width-1);for(let c=0;c<4;c++)out[(y*width+x)*4+c]=pixels[(y*width+src)*4+c];}
  };
+ // 줄 y에서 몸판 폭의 from~to 구간(양쪽 옆선에서 같은 거리) 평균색.
+ const bandColor=(y:number,[left,right]:Span,from:number,to:number)=>{
+  const sum=[0,0,0];let n=0;
+  for(const [a,b] of [[left+(right-left)*from,left+(right-left)*to],[right-(right-left)*to,right-(right-left)*from]])
+   for(let x=Math.round(a);x<=Math.round(b);x++){const i=(y*width+clamp(x,0,width-1))*4;sum[0]+=pixels[i];sum[1]+=pixels[i+1];sum[2]+=pixels[i+2];n++;}
+  return sum.map(v=>v/Math.max(1,n));
+ };
  if(layout.kind==='top'){
-  for(let y=layout.top;y<=layout.bottom;y++)tile(y,rowAt(layout.torso,(y-layout.top)/Math.max(1,layout.bottom-layout.top)),.1,.28);
+  for(let y=layout.top;y<=layout.bottom;y++){
+   const span=rowAt(layout.torso,(y-layout.top)/Math.max(1,layout.bottom-layout.top)),wide=bandColor(y,span,.1,.28),seam=bandColor(y,span,.03,.07);
+   const printed=Math.hypot(wide[0]-seam[0],wide[1]-seam[1],wide[2]-seam[2])>45;
+   if(printed)tile(y,span,.02,.07);else tile(y,span,.1,.28);
+  }
  }else{
   for(let y=layout.top;y<=layout.crotch;y++)tile(y,rowAt(layout.seat,(y-layout.top)/Math.max(1,layout.crotch-layout.top)),.12,.3);
   for(let y=layout.crotch;y<=layout.bottom;y++){const row=rowAt(layout.legs.map(([l,r])=>[l[0],l[1],r[0],r[1]]),(y-layout.crotch)/Math.max(1,layout.bottom-layout.crotch));tile(y,[row[0],row[1]],.3,.7);tile(y,[row[2],row[3]],.3,.7);}

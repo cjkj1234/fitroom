@@ -61,9 +61,12 @@ export function analyzeTopSilhouette(cutout:GarmentCutout):{silhouette:TopSilhou
  const {box}=cutout,height=box.y1-box.y0+1,fail=(reason:string)=>({silhouette:null,reason});
  const located=locateTop(cutout);if(!located.frame)return fail(located.reason);
  const {armpit,chest,smooth}=located.frame;
- const hem=box.y1-height*.01;
  // 첫 측정점은 겨드랑이 줄에 남은 소매 끝을 피해 조금 아래(옷 높이의 1.5%, 최소 3줄)에서 잰다.
  const first=armpit+Math.max(3,height*.015);
+ // 마지막 측정점(밑단)은 옆선이 끝나는 높이다. 둥근 밑단(셔츠 꼬리)이나 비스듬히 찍힌 밑단은 맨 아래 몇 줄에서 몸판 폭이 급히
+ // 줄어드므로, 아래에서 올라가며 옷 높이 4% 위 줄보다 8% 넘게 좁은 줄은 건너뛴다.
+ const drop=Math.max(3,Math.round(height*.04));let hem=Math.round(box.y1-height*.01);
+ while(hem>first+height*.2&&smooth(hem)<smooth(hem-drop)*.92)hem--;
  const bodyWidths=Array.from({length:SILHOUETTE_SAMPLES},(_,i)=>Math.round(smooth(Math.round(first+(hem-first)*i/(SILHOUETTE_SAMPLES-1)))/chest*1000)/1000);
  const armpitRatio=Math.round((armpit-box.y0)/height*1000)/1000,lengthToChest=Math.round(height/chest*1000)/1000;
  if(!bodyWidths.every(value=>within(value,SILHOUETTE_LIMITS.bodyWidth)))return fail(`몸판 폭 비율이 범위를 벗어났어요(${bodyWidths.join(', ')})`);
@@ -102,15 +105,24 @@ export function locateBottom(cutout:GarmentCutout):{frame:BottomFrame|null;reaso
  const waistRows:Array<[number,number]>=[];for(let y=box.y0+Math.round(height*.01);y<=box.y0+Math.round(height*.04);y++){const run=widest(runsAt(y));if(run)waistRows.push(run);}
  const waist=median(waistRows.map(r=>r[1]-r[0]+1)),cx=median(waistRows.map(r=>(r[0]+r[1])/2));
  if(waist<10)return fail('허리 폭을 재지 못했어요');
- // 그 줄의 두 다리: 가운데(cx)를 사이에 두고 왼쪽·오른쪽에 허리 폭의 8% 이상인 덩어리가 하나씩 있으면 [왼쪽, 오른쪽]을 돌려준다.
- const legsAt=(y:number):[[number,number],[number,number]]|null=>{
-  const runs=runsAt(y).filter(r=>r[1]-r[0]+1>=waist*.08);if(runs.some(r=>r[0]<=cx&&r[1]>=cx))return null;
-  const left=runs.filter(r=>r[1]<cx).pop(),right=runs.find(r=>r[0]>cx);return left&&right?[left,right]:null;
+ // 그 줄의 두 다리: 틈 위치 split을 사이에 두고 왼쪽·오른쪽에 허리 폭의 8% 이상인 덩어리가 하나씩 있으면 [왼쪽, 오른쪽]을 돌려준다.
+ const legsAround=(y:number,split:number):[[number,number],[number,number]]|null=>{
+  const runs=runsAt(y).filter(r=>r[1]-r[0]+1>=waist*.08);if(runs.some(r=>r[0]<=split&&r[1]>=split))return null;
+  const left=runs.filter(r=>r[1]<split).pop(),right=runs.find(r=>r[0]>split);return left&&right?[left,right]:null;
  };
- // 가랑이: 위에서 내려오며 두 다리가 따로 보이는 줄이 4줄 이어지는 첫 줄.
+ // 가랑이: 위에서 내려오며 허리 가운데(cx) 양쪽으로 두 다리가 따로 보이는 줄이 4줄 이어지는 첫 줄.
  let crotch=-1,streak=0;
- for(let y=box.y0+Math.round(height*.1);y<=box.y1-Math.round(height*.05);y++){if(legsAt(y)){if(++streak===4){crotch=y-3;break;}}else streak=0;}
+ for(let y=box.y0+Math.round(height*.1);y<=box.y1-Math.round(height*.05);y++){if(legsAround(y,cx)){if(++streak===4){crotch=y-3;break;}}else streak=0;}
  if(crotch<0)return fail('두 다리 사이(가랑이)를 찾지 못했어요');
+ // 가랑이 아래에서는 두 다리 사이 틈의 가운데를 한 줄씩 따라 내려간다. 다리를 한쪽으로 비스듬히 펼쳐 찍어 틈이 허리 가운데에서
+ // 벗어나도 다리를 놓치지 않는다. 틈이 끊긴 줄(다리가 맞닿음)은 앞 줄의 틈 위치를 그대로 쓴다.
+ const splits=new Float64Array(box.y1-crotch+1);let gapX=cx;
+ for(let y=crotch;y<=box.y1;y++){
+  const runs=runsAt(y).filter(r=>r[1]-r[0]+1>=waist*.08);let best=Infinity;
+  for(let i=0;i+1<runs.length;i++){const gap=(runs[i][1]+runs[i+1][0])/2;if(Math.abs(gap-gapX)<Math.abs(best-gapX))best=gap;}
+  if(Math.abs(best-gapX)<=waist*.15)gapX=best;splits[y-crotch]=gapX;
+ }
+ const legsAt=(y:number)=>{const row=Math.round(y);return legsAround(row,row<crotch?cx:splits[Math.min(splits.length-1,row-crotch)]);};
  // 가랑이 아래에서는 두 다리가 거의 내내 떨어져 보여야 한다. 다리를 겹쳐 놓았거나 사람이 입은 사진이면 여기서 거른다.
  let rows=0,split=0;for(let y=crotch;y<=box.y1-2;y++){rows++;if(legsAt(y))split++;}
  if(split<rows*.85)return fail('가랑이 아래에서 두 다리가 계속 떨어져 보이지 않아요');
@@ -125,7 +137,11 @@ export function analyzeBottomSilhouette(cutout:GarmentCutout):{silhouette:Bottom
  let hip=0;for(let y=box.y0+Math.round(height*.05);y<crotch;y++)hip=Math.max(hip,median([-2,-1,0,1,2].map(d=>centralWidth(y+d))));
  // 다리 폭: 두 다리 평면 폭의 평균(5줄 중앙값). 첫 곳은 가랑이에서 옷 높이의 2%(최소 3줄) 아래 허벅지, 마지막은 밑단 1% 위.
  const legWidth=(y:number)=>{const values=[-2,-1,0,1,2].map(d=>legsAt(y+d)).filter((legs):legs is [[number,number],[number,number]]=>legs!==null).map(([l,r])=>((l[1]-l[0]+1)+(r[1]-r[0]+1))/2);return values.length?median(values):0;};
- const first=crotch+Math.max(3,height*.02),last=box.y1-Math.max(2,height*.01);
+ const first=crotch+Math.max(3,height*.02),drop=Math.max(3,Math.round(height*.04));
+ // 마지막 곳(밑단)은 두 다리가 모두 보이고 폭이 급히 줄지 않는 가장 낮은 줄이다. 두 다리 밑단 높이가 다르거나 밑단이 비스듬하면
+ // 맨 아래 줄에서 한쪽 다리가 없거나 폭이 줄어드므로, 아래에서 올라가며 그런 줄(옷 높이 4% 위보다 8% 넘게 좁은 줄)은 건너뛴다.
+ let last=Math.round(box.y1-Math.max(2,height*.01));
+ while(last>first+height*.2&&(!legsAt(last)||legWidth(last)<legWidth(last-drop)*.92))last--;
  const raw=Array.from({length:LEG_SAMPLES},(_,i)=>legWidth(first+(last-first)*i/(LEG_SAMPLES-1)));
  if(raw.some(value=>value<=0))return fail('다리 폭을 재지 못했어요');
  const round=(value:number)=>Math.round(value*1000)/1000;

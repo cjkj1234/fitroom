@@ -59,6 +59,16 @@ test('소매 아랫선이 몸판에 비스듬히 이어진 셔츠도 겨드랑�
  assert.ok(shape.bodyWidths.every(value=>Math.abs(value-1)<.06),`몸판 ${shape.bodyWidths}`);
 });
 
+test('둥근 밑단(셔츠 꼬리)은 옆선이 끝나는 높이를 밑단으로 보고 몸판 폭이 줄었다고 재지 않는다',()=>{
+ // 옆선은 y=250에서 끝나고 가운데가 30px 더 내려온 둥근 밑단.
+ const top=40,c=200,half=80,shoulder=76,armpit=112;
+ const body:Point[]=[[c-shoulder,top],[c+shoulder,top],[c+half,armpit],[c+half,250],[c+half*.6,268],[c,280],[c-half*.6,268],[c-half,250],[c-half,armpit]];
+ const sleeve=(side:1|-1):Point[]=>[[c+side*(shoulder-4),top+2],[c+side*(shoulder+66),top+40],[c+side*(half+49),armpit+22],[c+side*(half-2),armpit]];
+ const result=analyzeTopSilhouette(flatLay(400,320,[body,sleeve(1),sleeve(-1)]));
+ assert.ok(result.silhouette,result.reason);
+ assert.ok(result.silhouette.bodyWidths.every(value=>Math.abs(value-1)<.08),`몸판 ${result.silhouette.bodyWidths}`);
+});
+
 test('소매가 없는 사각형은 겨드랑이를 찾지 못했다고 이유와 함께 알린다',()=>{
  const result=analyzeTopSilhouette(flatLay(300,300,[[[90,40],[210,40],[210,260],[90,260]]]));
  assert.equal(result.silhouette,null);
@@ -113,6 +123,15 @@ test('테이퍼드·부츠컷·반바지: 다리가 좁아지거나 넓어지는
  const shorts=analyzeBottomSilhouette(trousers({length:150,riseAt:80,gap:20})),short=shorts.silhouette!;
  assert.ok(short,shorts.reason);
  assert.ok(Math.abs(short.lengthToWaist-150/150)<.05&&Math.abs(short.rise-80/150)<.04,`반바지 ${short.lengthToWaist} ${short.rise}`);
+});
+
+test('다리를 한쪽으로 비스듬히 펼치고 두 밑단 높이가 다른 바지도 다리 폭을 잰다',()=>{
+ // 두 다리가 오른쪽으로 40px 기울고, 오른쪽 다리 밑단은 비스듬해 바깥쪽이 20px 짧다.
+ const top=40,c=200,crotch=130,bottom=340,shift=40;
+ const outline:Point[]=[[c-75,top],[c+75,top],[c+88,crotch],[c+shift+26+70,bottom-20],[c+shift+26,bottom],[c+shift/4,crotch+6],[c-shift/4,crotch+6],[c+shift-26,bottom],[c+shift-26-88,bottom],[c-88,crotch]];
+ const result=analyzeBottomSilhouette(flatLay(400,380,[outline]));
+ assert.ok(result.silhouette,result.reason);
+ assert.ok(result.silhouette.legWidths.every(value=>value>.6&&value<1.15),`다리 ${result.silhouette.legWidths}`);
 });
 
 test('두 다리를 붙여 놓았거나 다리가 없는 모양은 가랑이를 찾지 못했다고 이유와 함께 알린다',()=>{

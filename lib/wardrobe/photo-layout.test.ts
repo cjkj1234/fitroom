@@ -65,6 +65,16 @@ test('배경을 옷 색으로 번지게 채우고, 뒤 사진이 없으면 가�
  assert.ok(at(back,200,203)[2]>at(back,200,203)[0]+20,'남색 줄');assert.ok(at(back,200,213)[0]>200,'흰 줄');
 });
 
+test('몸판 폭 가득한 가슴 프린트도 뒤판에 옮기지 않는다(옆선 쪽 원단으로 채운다)',()=>{
+ // 검은 티셔츠, y 140~180에 몸판 폭의 85%를 덮는 흰 프린트.
+ const paint=(x:number,y:number):[number,number,number]=>Math.abs(x-200)<68&&y>140&&y<180?[235,235,235]:[18,18,18];
+ const {pixels,cutout}=tee(paint),layout=analyzeTopLayout(cutout).layout as TopLayout;
+ const bled=Uint8ClampedArray.from(pixels);bleedBackground(bled,cutout.mask,cutout.width,cutout.height);
+ const back=synthesizeBack(bled,layout);
+ let white=0;for(let y=145;y<176;y++)for(let x=125;x<276;x++)if(back[(y*400+x)*4]>150)white++;
+ assert.equal(white,0,'뒤판에 흰 프린트 띠가 생기지 않는다');
+});
+
 test('앞 사진의 앞 목선(목둘레 안 뒤판 안쪽이 끝나는 깊이)을 재고, 3D 앞 목선을 그 깊이에 맞춘다',()=>{
  // 목 옆 점은 가운데에서 ±22px, 어깨로 갈수록 내려간다. 목둘레 안(가운데 30px 깊이까지)은 어두운 뒤판 안쪽.
  const c=200,top=40,inner=(x:number,y:number)=>Math.abs(x-c)<22&&y<top+30*Math.pow(1-((x-c)/22)**2,.9);
